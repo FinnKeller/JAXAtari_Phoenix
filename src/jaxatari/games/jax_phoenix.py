@@ -20,9 +20,9 @@ HEIGHT = 210
 SCALING_FACTOR = 3
 
 # Object sizes and initial positions from Ram State
-PLAYER_POSITION = 76, 100
+PLAYER_POSITION = 76, 175
 PLAYER_COLOR = (213, 130, 74)
-PLAYER_BOUNDS = (0, 160) # (left, right)
+PLAYER_BOUNDS = (0, 155) # (left, right)
 # MAX number of Objects
 MAX_PLAYER = 1
 MAX_PLAYER_PROJECTILE = 1
@@ -33,13 +33,14 @@ MAX_BOSS_BLOCK_GREEN = 1
 MAX_BOSS_BLOCK_BLUE = 48
 MAX_BOSS_BLOCK_RED = 104
 
-
-
 # === GAME STATE ===
 class PhoenixState(NamedTuple):
     player_x: chex.Array
     player_y: chex.Array
     step_counter: chex.Array
+    projectile_x: chex.Array = jnp.array(-1)  # Standardwert: kein Projektil
+    projectile_y: chex.Array = jnp.array(-1)  # Standardwert: kein Projektil
+
 
 class PhoenixOberservation(NamedTuple):
     player_x: chex.Array
@@ -64,17 +65,22 @@ def load_sprites(): # load Sprites
     SPRITE_PLAYER = jnp.expand_dims(player_sprites, axis=0)
     bg_sprites = aj.loadFrame(os.path.join(MODULE_DIR, "./sprites/pong/background.npy"))
     BG_SPRITE = jnp.expand_dims(bg_sprites, axis=0)
+    BG_SPRITE = np.zeros_like(BG_SPRITE)
     play_projectile = aj.loadFrame(os.path.join(MODULE_DIR, "./sprites/phoenix/player_projectile.npy"))
+    SPRITE_FLOOR = aj.loadFrame(os.path.join(MODULE_DIR, "./sprites/phoenix/floor.npy"))
+    SPRITE_FLOOR = jnp.expand_dims(SPRITE_FLOOR, axis=0)
+    SPRITE_PLAYER_PROJECTILE = jnp.expand_dims(play_projectile, axis=0)
     print("Player sprite shape:", SPRITE_PLAYER.shape)
     # shape (5, 10,4)
     return (
         SPRITE_PLAYER,
         BG_SPRITE,
-        play_projectile
+        SPRITE_PLAYER_PROJECTILE,
+        SPRITE_FLOOR,
 
     )
 # load sprites on module layer
-(SPRITE_PLAYER, SPRITE_BG, SPRITE_PLAYER_PROJECTILE) = load_sprites()
+(SPRITE_PLAYER, SPRITE_BG, SPRITE_PLAYER_PROJECTILE, SPRITE_FLOOR) = load_sprites()
 
 
 
@@ -135,10 +141,32 @@ class JaxPhoenix(JaxEnvironment[PhoenixState, PhoenixOberservation, PhoenixInfo]
             step_counter=0,
         )
     #ToDo _get_info,_get_env_reward,_get_all_rewards,_get_done
+    def get_action_space(self) -> jnp.ndarray:
+        return jnp.array(self.action_set)
 
     def __init__(self):
         super().__init__()
-        self.step_counter = 0  # Add step counter tracking
+        self.step_counter = 0
+        self.action_set = [
+            Action.NOOP,
+            Action.FIRE,
+            Action.UP,
+            Action.RIGHT,
+            Action.LEFT,
+            Action.DOWN,
+            Action.UPRIGHT,
+            Action.UPLEFT,
+            Action.DOWNRIGHT,
+            Action.DOWNLEFT,
+            Action.UPFIRE,
+            Action.RIGHTFIRE,
+            Action.LEFTFIRE,
+            Action.DOWNFIRE,
+            Action.UPRIGHTFIRE,
+            Action.UPLEFTFIRE,
+            Action.DOWNRIGHTFIRE,
+            Action.DOWNLEFTFIRE
+        ]# Add step counter tracking
     def reset(self, key: jax.random.PRNGKey = jax.random.PRNGKey(42)) -> Tuple[PhoenixOberservation, PhoenixState]:
         # Reset the state
         return_state = PhoenixState(
@@ -150,16 +178,26 @@ class JaxPhoenix(JaxEnvironment[PhoenixState, PhoenixOberservation, PhoenixInfo]
         initial_obs = self._get_observation(return_state)
         return initial_obs, return_state
 
+
     def step(self,state, action: Action) -> Tuple[PhoenixOberservation, PhoenixState, float, bool, PhoenixInfo]:
+        player_x = player_step(state, action)
+
+        projectile_y = state.player_y - 1
+        projectile_x = jnp.where(action == Action.FIRE, state.player_x, -100) + 2  # -1 bedeutet kein Projektil
 
         #previous_state = state
-        state = state.reset()
-        return_state = PhoenixState(player_x=state.player_x, player_y=state.player_y)
+        #state = state.reset()
+        return_state = PhoenixState(player_x=player_x,
+            player_y=state.player_y,
+            step_counter=state.step_counter + 1,
+            projectile_x=projectile_x,
+            projectile_y=projectile_y
+        )
         observation = self._get_observation(return_state)
         env_reward = 0.0 #toDO
-        done = True #toDo
-        info = self._get_info(state, env_reward)
-        observation, return_state, env_reward, done, info
+        done = False #toDo
+        info = self._get_info(return_state, env_reward)
+        return observation, return_state, env_reward, done, info
 
 from jaxatari.renderers import AtraJaxisRenderer
 
@@ -167,13 +205,27 @@ class PhoenixRenderer(AtraJaxisRenderer):
     @partial(jax.jit, static_argnums=(0,))
     def render(self, state):
         raster = jnp.zeros((WIDTH, HEIGHT, 3))
-
-
+        # Render background
+        frame_bg = aj.get_sprite_frame(SPRITE_BG, 0)
+        raster = aj.render_at(raster, 0, 0, frame_bg)
+        # Render floor
+        frame_floor = aj.get_sprite_frame(SPRITE_FLOOR, 0)
+        raster = aj.render_at(raster, 0, 185, frame_floor)
         # Render player
-
         frame_player = aj.get_sprite_frame(SPRITE_PLAYER, 0)
         raster = aj.render_at(raster, state.player_x, state.player_y, frame_player)
+        # Render projectile
+        frame_projectile = aj.get_sprite_frame(SPRITE_PLAYER_PROJECTILE, 0)
 
+        def render_projectile(r):
+            return aj.render_at(r, state.projectile_x, state.projectile_y, frame_projectile)
+
+        raster = jax.lax.cond(
+            state.projectile_x > -1,
+            render_projectile,
+            lambda r: r,
+            raster
+        )
 
         return raster
 
