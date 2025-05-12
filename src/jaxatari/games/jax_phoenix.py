@@ -48,12 +48,15 @@ class PhoenixState(NamedTuple):
     enemies_x: chex.Array = jnp.array([-1] * MAX_PHOENIX)  # Gegner X-Positionen
     enemies_y: chex.Array = jnp.array([-1] * MAX_PHOENIX)  # Gegner Y-Positionen
     score: chex.Array = jnp.array(0)  # Score
+    lives: chex.Array = jnp.array(5) # Lives
+
 
 
 class PhoenixOberservation(NamedTuple):
     player_x: chex.Array
     player_y: chex.Array
     player_score: chex.Array
+    lives = chex.Array
 
 class PhoenixInfo(NamedTuple):
     step_counter: jnp.ndarray
@@ -91,7 +94,8 @@ def load_sprites(): # load Sprites
     SPRITE_BAT_LOW_WING = jnp.expand_dims(bat_low_wings_sprite, axis=0)
     SPRITE_ENEMY_PROJECTILE = jnp.expand_dims(enemy_projectile, axis=0)
 
-    DIGITS = aj.load_and_pad_digits(os.path.join(MODULE_DIR, "./sprites/seaquest/digits/{}.npy"))
+    DIGITS = aj.load_and_pad_digits(os.path.join(MODULE_DIR, "./sprites/phoenix/digits/{}.npy"))
+    LIFE_INDICATOR = aj.loadFrame(os.path.join(MODULE_DIR, "./sprites/phoenix/life_indicator.npy"))
 
 
 
@@ -108,9 +112,10 @@ def load_sprites(): # load Sprites
         SPRITE_BAT_LOW_WING,
         SPRITE_ENEMY_PROJECTILE,
         DIGITS,
+        LIFE_INDICATOR,
     )
 # load sprites on module layer
-(SPRITE_PLAYER, SPRITE_BG, SPRITE_PLAYER_PROJECTILE, SPRITE_FLOOR, SPRITE_ENEMY1, SPRITE_ENEMY2, SPRITE_BAT_HIGH_WING, SPRITE_BAT_LOW_WING, SPRITE_ENEMY_PROJECTILE, DIGITS) = load_sprites()
+(SPRITE_PLAYER, SPRITE_BG, SPRITE_PLAYER_PROJECTILE, SPRITE_FLOOR, SPRITE_ENEMY1, SPRITE_ENEMY2, SPRITE_BAT_HIGH_WING, SPRITE_BAT_LOW_WING, SPRITE_ENEMY_PROJECTILE, DIGITS, LIFE_INDICATOR) = load_sprites()
 
 
 
@@ -210,7 +215,7 @@ class JaxPhoenix(JaxEnvironment[PhoenixState, PhoenixOberservation, PhoenixInfo]
     def reset(self, key: jax.random.PRNGKey = jax.random.PRNGKey(42)) -> Tuple[PhoenixOberservation, PhoenixState]:
         # Jax kompatibles Random
         enemy_spawn_x = jax.random.randint(key, (MAX_PHOENIX,), 0, WIDTH - ENEMY_WIDTH)
-        enemy_spawn_y = jax.random.randint(key, (MAX_PHOENIX,), 0, HEIGHT // 2)
+        enemy_spawn_y = jax.random.randint(key, (MAX_PHOENIX,), 0, HEIGHT // 2 - 20,)
 
 
         # Reset the state
@@ -307,10 +312,7 @@ class PhoenixRenderer(AtraJaxisRenderer):
         frame_bat_high_wings = aj.get_sprite_frame(SPRITE_BAT_HIGH_WING, 0)
         frame_bat_low_wings = aj.get_sprite_frame(SPRITE_BAT_LOW_WING, 0)
         frame_enemy_projectile = aj.get_sprite_frame(SPRITE_ENEMY_PROJECTILE, 0)
-        #render score
 
-        score_array = aj.int_to_digits(state.score, max_digits=5) # 5 for now
-        raster = aj.render_label(raster, 10, 10, score_array, DIGITS, spacing=7)
 
         def render_enemy(raster, enemy_pos):
             x, y = enemy_pos
@@ -334,7 +336,12 @@ class PhoenixRenderer(AtraJaxisRenderer):
             lambda r: r,
             raster
         )
-
+        score_array = aj.int_to_digits(state.score, max_digits=5)  # 5 for now
+        raster = aj.render_label(raster, 60, 10, score_array, DIGITS, spacing=7)
+        # render lives
+        lives_array = aj.int_to_digits(state.lives, max_digits=2)
+        lives_value = jnp.sum(lives_array)
+        raster = aj.render_indicator(raster, 70, 20, lives_value, LIFE_INDICATOR, spacing=4)
 
         return raster
 
