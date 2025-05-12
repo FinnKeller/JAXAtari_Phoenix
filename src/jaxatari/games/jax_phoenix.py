@@ -11,6 +11,8 @@ import jaxatari.rendering.atraJaxis as aj
 import numpy as np
 
 from jaxatari.environment import JaxEnvironment, JAXAtariAction as Action
+from jaxatari.games.jax_kangaroo import PLAYER_WIDTH
+
 # Game Constants
 WINDOW_WIDTH = 160 * 3
 WINDOW_HEIGHT = 210 * 3
@@ -40,6 +42,8 @@ class PhoenixState(NamedTuple):
     step_counter: chex.Array
     projectile_x: chex.Array = jnp.array(-1)  # Standardwert: kein Projektil
     projectile_y: chex.Array = jnp.array(-1)  # Standardwert: kein Projektil
+    enemies_x: chex.Array = jnp.array([-1] * MAX_PHOENIX)  # Gegner X-Positionen
+    enemies_y: chex.Array = jnp.array([-1] * MAX_PHOENIX)  # Gegner Y-Positionen
 
 
 class PhoenixOberservation(NamedTuple):
@@ -62,14 +66,28 @@ def load_sprites(): # load Sprites
 
     # Load individual sprite frames
     player_sprites = aj.loadFrame(os.path.join(MODULE_DIR, "./sprites/phoenix/player.npy"))
-    SPRITE_PLAYER = jnp.expand_dims(player_sprites, axis=0)
     bg_sprites = aj.loadFrame(os.path.join(MODULE_DIR, "./sprites/pong/background.npy"))
-    BG_SPRITE = jnp.expand_dims(bg_sprites, axis=0)
-    BG_SPRITE = np.zeros_like(BG_SPRITE)
-    play_projectile = aj.loadFrame(os.path.join(MODULE_DIR, "./sprites/phoenix/player_projectile.npy"))
-    SPRITE_FLOOR = aj.loadFrame(os.path.join(MODULE_DIR, "./sprites/phoenix/floor.npy"))
-    SPRITE_FLOOR = jnp.expand_dims(SPRITE_FLOOR, axis=0)
-    SPRITE_PLAYER_PROJECTILE = jnp.expand_dims(play_projectile, axis=0)
+    floor_sprite = aj.loadFrame(os.path.join(MODULE_DIR, "./sprites/phoenix/floor.npy"))
+    player_projectile = aj.loadFrame(os.path.join(MODULE_DIR, "./sprites/phoenix/player_projectile.npy"))
+    bat_high_wings_sprite = aj.loadFrame(os.path.join(MODULE_DIR, "./sprites/phoenix/bats/bats_high_wings.npy"))
+    bat_low_wings_sprite = aj.loadFrame(os.path.join(MODULE_DIR, "./sprites/phoenix/bats/bats_low_wings.npy"))
+    enemy1_sprite = aj.loadFrame(os.path.join(MODULE_DIR, "./sprites/phoenix/enemy_phoenix.npy"))
+    enemy2_sprite = aj.loadFrame(os.path.join(MODULE_DIR, "./sprites/phoenix/enemy_phoenix_2.npy"))
+    enemy_projectile = aj.loadFrame(os.path.join(MODULE_DIR, "./sprites/phoenix/enemy_projectile.npy"))
+
+
+    SPRITE_PLAYER = jnp.expand_dims(player_sprites, axis=0)
+    BG_SPRITE = jnp.expand_dims(np.zeros_like(bg_sprites), axis=0)
+    SPRITE_FLOOR = jnp.expand_dims(floor_sprite, axis=0)
+    SPRITE_PLAYER_PROJECTILE = jnp.expand_dims(player_projectile, axis=0)
+    SPRITE_ENEMY1 = jnp.expand_dims(enemy1_sprite, axis=0)
+    SPRITE_ENEMY2 = jnp.expand_dims(enemy2_sprite, axis=0)
+    SPRITE_BAT_HIGH_WING = jnp.expand_dims(bat_high_wings_sprite, axis=0)
+    SPRITE_BAT_LOW_WING = jnp.expand_dims(bat_low_wings_sprite, axis=0)
+    SPRITE_ENEMY_PROJECTILE = jnp.expand_dims(enemy_projectile, axis=0)
+
+
+
     print("Player sprite shape:", SPRITE_PLAYER.shape)
     # shape (5, 10,4)
     return (
@@ -77,10 +95,14 @@ def load_sprites(): # load Sprites
         BG_SPRITE,
         SPRITE_PLAYER_PROJECTILE,
         SPRITE_FLOOR,
-
+        SPRITE_ENEMY1,
+        SPRITE_ENEMY2,
+        SPRITE_BAT_HIGH_WING,
+        SPRITE_BAT_LOW_WING,
+        SPRITE_ENEMY_PROJECTILE,
     )
 # load sprites on module layer
-(SPRITE_PLAYER, SPRITE_BG, SPRITE_PLAYER_PROJECTILE, SPRITE_FLOOR) = load_sprites()
+(SPRITE_PLAYER, SPRITE_BG, SPRITE_PLAYER_PROJECTILE, SPRITE_FLOOR, SPRITE_ENEMY1, SPRITE_ENEMY2, SPRITE_BAT_HIGH_WING, SPRITE_BAT_LOW_WING, SPRITE_ENEMY_PROJECTILE) = load_sprites()
 
 
 
@@ -89,6 +111,9 @@ def load_sprites(): # load Sprites
 @jax.jit
 def player_step(
     state: PhoenixState, action: chex.Array) -> tuple[chex.Array]:
+
+    step_size = 2 # Größerer Wert = schnellerer Schritt
+
     """Step function for the player."""
     left = jnp.any(
         jnp.array(
@@ -115,7 +140,7 @@ def player_step(
         )
     )
     player_x = jnp.where(
-        right, state.player_x + 1, jnp.where(left, state.player_x - 1, state.player_x)
+        right, state.player_x + step_size, jnp.where(left, state.player_x - step_size, state.player_x)
     )
 
     player_x = jnp.where(
@@ -124,6 +149,12 @@ def player_step(
 
     return player_x
 
+
+# Größe der Sprites (Beispielwerte, anpassen falls nötig)
+PROJECTILE_WIDTH = 2
+PROJECTILE_HEIGHT = 4
+ENEMY_WIDTH = 10
+ENEMY_HEIGHT = 10
 
 #ToDo
 class JaxPhoenix(JaxEnvironment[PhoenixState, PhoenixOberservation, PhoenixInfo]):
@@ -168,11 +199,18 @@ class JaxPhoenix(JaxEnvironment[PhoenixState, PhoenixOberservation, PhoenixInfo]
             Action.DOWNLEFTFIRE
         ]# Add step counter tracking
     def reset(self, key: jax.random.PRNGKey = jax.random.PRNGKey(42)) -> Tuple[PhoenixOberservation, PhoenixState]:
+        # Jax kompatibles Random
+        enemy_spawn_x = jax.random.randint(key, (MAX_PHOENIX,), 0, WIDTH - ENEMY_WIDTH)
+        enemy_spawn_y = jax.random.randint(key, (MAX_PHOENIX,), 0, HEIGHT // 2)
+
+
         # Reset the state
         return_state = PhoenixState(
             player_x=jnp.array(PLAYER_POSITION[0]),
             player_y=jnp.array(PLAYER_POSITION[1]),
             step_counter=jnp.array(0),
+            enemies_x = enemy_spawn_x,
+            enemies_y = enemy_spawn_y,
         )
 
         initial_obs = self._get_observation(return_state)
@@ -182,19 +220,52 @@ class JaxPhoenix(JaxEnvironment[PhoenixState, PhoenixOberservation, PhoenixInfo]
     def step(self,state, action: Action) -> Tuple[PhoenixOberservation, PhoenixState, float, bool, PhoenixInfo]:
         player_x = player_step(state, action)
 
-        projectile_y = state.player_y - 1
-        projectile_x = jnp.where(action == Action.FIRE, state.player_x, -100) + 2  # -1 bedeutet kein Projektil
+        can_fire = state.projectile_y < 0
+        projectile_x = jnp.where((action == Action.FIRE) & can_fire, state.player_x + 2, state.projectile_x)
+        projectile_y = jnp.where((action == Action.FIRE) & can_fire, state.player_y - 1, state.projectile_y - 3) # durch das -3 wird das Projektil schneller
+
+        # Projektil entfernen, wenn es obere Grenze erreicht:
+        projectile_y = jnp.where(projectile_y < 0, -6, projectile_y)
+
+
+        enemies_x = state.enemies_x
+        enemies_y = state.enemies_y
+
+        projectile_pos = jnp.array([projectile_x, projectile_y])
+        enemy_positions = jnp.stack((enemies_x, enemies_y), axis=1)
+
+        def check_collision(enemy_pos, projectile_pos):
+            enemy_x, enemy_y = enemy_pos
+            projectile_x, projectile_y = projectile_pos
+
+            collision_x = (projectile_x + PROJECTILE_WIDTH > enemy_x) & (projectile_x < enemy_x + ENEMY_WIDTH)
+            collision_y = (projectile_y + PROJECTILE_HEIGHT > enemy_y) & (projectile_y < enemy_y + ENEMY_HEIGHT)
+            return collision_x & collision_y
+
+        # Kollisionsprüfung
+        collisions = jax.vmap(lambda enemy_pos: check_collision(enemy_pos, projectile_pos))(enemy_positions)
+        hit_detected = jnp.any(collisions)
+
+        # Gegner und Projektil entfernen wenn eine Kollision erkannt wurde
+        enemies_x = jnp.where(collisions, -1, enemies_x)
+        enemies_y = jnp.where(collisions, -1, enemies_y)
+        projectile_x = jnp.where(hit_detected, -1, projectile_x)
+        projectile_y = jnp.where(hit_detected, -1, projectile_y)
+
 
         #previous_state = state
         #state = state.reset()
-        return_state = PhoenixState(player_x=player_x,
-            player_y=state.player_y,
-            step_counter=state.step_counter + 1,
-            projectile_x=projectile_x,
-            projectile_y=projectile_y
+        return_state = PhoenixState(
+            player_x = player_x,
+            player_y = state.player_y,
+            step_counter = state.step_counter + 1,
+            projectile_x = projectile_x,
+            projectile_y = projectile_y,
+            enemies_x = enemies_x,
+            enemies_y = enemies_y,
         )
         observation = self._get_observation(return_state)
-        env_reward = 0.0 #toDO
+        env_reward = jnp.where(hit_detected, 1.0, 0.0)
         done = False #toDo
         info = self._get_info(return_state, env_reward)
         return observation, return_state, env_reward, done, info
@@ -216,6 +287,26 @@ class PhoenixRenderer(AtraJaxisRenderer):
         raster = aj.render_at(raster, state.player_x, state.player_y, frame_player)
         # Render projectile
         frame_projectile = aj.get_sprite_frame(SPRITE_PLAYER_PROJECTILE, 0)
+        # Render enemies
+        frame_enemy_1 = aj.get_sprite_frame(SPRITE_ENEMY1, 0)
+        frame_enemy_2 = aj.get_sprite_frame(SPRITE_ENEMY2, 0)
+        frame_bat_high_wings = aj.get_sprite_frame(SPRITE_BAT_HIGH_WING, 0)
+        frame_bat_low_wings = aj.get_sprite_frame(SPRITE_BAT_LOW_WING, 0)
+        frame_enemy_projectile = aj.get_sprite_frame(SPRITE_ENEMY_PROJECTILE, 0)
+
+
+        def render_enemy(raster, enemy_pos):
+            x, y = enemy_pos
+            raster = jax.lax.cond(
+                x > -1,
+                lambda r: aj.render_at(r, x, y, frame_enemy_1),
+                lambda r: r,
+                raster
+            )
+            return raster, None
+
+        enemy_positions = jnp.stack((state.enemies_x, state.enemies_y), axis=1)
+        raster, _ = jax.lax.scan(render_enemy, raster, enemy_positions)
 
         def render_projectile(r):
             return aj.render_at(r, state.projectile_x, state.projectile_y, frame_projectile)
@@ -227,7 +318,9 @@ class PhoenixRenderer(AtraJaxisRenderer):
             raster
         )
 
+
         return raster
+
 
 
 
