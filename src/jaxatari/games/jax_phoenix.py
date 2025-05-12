@@ -1,109 +1,169 @@
-from typing import NamedTuple, Tuple
+import os
+from functools import partial
+from operator import truediv
+from typing import Tuple, NamedTuple
 import jax
 import jax.numpy as jnp
-from jaxatari.environment import JaxEnvironment
 import chex
+import pygame
+from jax import Array
+import jaxatari.rendering.atraJaxis as aj
+import numpy as np
+
+from jaxatari.environment import JaxEnvironment, JAXAtariAction as Action
+# Game Constants
+WINDOW_WIDTH = 160 * 3
+WINDOW_HEIGHT = 210 * 3
+
+WIDTH = 160
+HEIGHT = 210
+SCALING_FACTOR = 3
+
+# Object sizes and initial positions from Ram State
+PLAYER_POSITION = 76, 100
+PLAYER_COLOR = (213, 130, 74)
+# MAX number of Objects
+MAX_PLAYER = 1
+MAX_PLAYER_PROJECTILE = 1
+MAX_PHOENIX = 8
+MAX_BATS = 7
+MAX_BOSS = 1
+MAX_BOSS_BLOCK_GREEN = 1
+MAX_BOSS_BLOCK_BLUE = 48
+MAX_BOSS_BLOCK_RED = 104
+
 
 
 # === GAME STATE ===
 class PhoenixState(NamedTuple):
     player_x: chex.Array
     player_y: chex.Array
-    player_bullet_y: chex.Array
-    bullet_active: chex.Array
-    enemy_positions: chex.Array  # shape (N, 2)
-    enemy_alive: chex.Array  # shape (N,)
+    step_counter: chex.Array
+
+class PhoenixOberservation(NamedTuple):
+    player_x: chex.Array
+    player_y: chex.Array
+
+class PhoenixInfo(NamedTuple):
+    step_counter: jnp.ndarray
+
+class CarryState(NamedTuple):
     score: chex.Array
-    step_count: chex.Array
+
+class EntityPosition(NamedTuple):## not sure
+    x: chex.Array
+    y: chex.Array
 
 
-# === PURE STEP FUNCTION ===
+def load_sprites(): # load Sprites
+    MODULE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+    # Load individual sprite frames
+    player = aj.loadFrame(os.path.join(MODULE_DIR, "./sprites/phoenix/player.npy"))
+    player = jnp.expand_dims(player, axis=0)
+
+    print("Player sprite shape:", player.shape)
+    return (
+        player
+
+    )
+# load sprites on module layer
+SPRITE_PLAYER = load_sprites()[0]
+
+
+
+
+
 @jax.jit
-def phoenix_step(state: PhoenixState, action: chex.Array, rng: jax.random.PRNGKey) -> Tuple[chex.Array, PhoenixState, chex.Array, chex.Array, dict]:
-    # Unpack state
-    player_x = state.player_x
-    player_y = state.player_y
-    bullet_y = state.player_bullet_y
-    bullet_active = state.bullet_active
-    enemy_positions = state.enemy_positions
-    enemy_alive = state.enemy_alive
-    score = state.score
-    step_count = state.step_count
-
-    # === Handle player movement ===
-    move = jnp.where(action == 1, -1, jnp.where(action == 2, 1, 0))
-    new_player_x = jnp.clip(player_x + move, 0, 19)
-
-    # === Handle shooting ===
-    shoot = jnp.where(action == 3, 1, 0)
-    new_bullet_active = jnp.where((bullet_active == 0) & (shoot == 1), 1, bullet_active)
-    new_bullet_y = jnp.where(new_bullet_active == 1, bullet_y - 1, bullet_y)
-
-    # === Check for hits ===
-    hit_mask = (new_bullet_active == 1) & jnp.any(
-        (enemy_alive[:, None]) &
-        (enemy_positions[:, 0] == new_player_x) &
-        (enemy_positions[:, 1] == new_bullet_y),
-        axis=0
-    )
-    updated_enemy_alive = jnp.where(
-        (enemy_positions[:, 0] == new_player_x) & (enemy_positions[:, 1] == new_bullet_y),
-        0,
-        enemy_alive
-    )
-    updated_score = score + jnp.sum(enemy_alive - updated_enemy_alive)
-
-    # === Bullet reset if it goes off screen or hits ===
-    new_bullet_active = jnp.where((new_bullet_y < 0) | hit_mask, 0, new_bullet_active)
-    new_bullet_y = jnp.where((new_bullet_y < 0) | hit_mask, player_y - 1, new_bullet_y)
-
-    # === Game over if all enemies are dead ===
-    done = jnp.all(updated_enemy_alive == 0)
-
-    # === Observation: for now, just use player x/y and score ===
-    obs = jnp.array([new_player_x, new_player_y, updated_score], dtype=jnp.int32)
-
-    new_state = PhoenixState(
-        player_x=new_player_x,
-        player_y=player_y,
-        player_bullet_y=new_bullet_y,
-        bullet_active=new_bullet_active,
-        enemy_positions=enemy_positions,
-        enemy_alive=updated_enemy_alive,
-        score=updated_score,
-        step_count=step_count + 1,
-    )
-
-    return obs, new_state, updated_score, done, {}
-
-
-# === ENVIRONMENT CLASS ===
-class JaxPhoenix(JaxEnvironment):
-    def __init__(self):
-        self.num_enemies = 5
-
-    def reset(self, rng: jax.random.PRNGKey) -> Tuple[chex.Array, PhoenixState]:
-        enemy_xs = jnp.linspace(0, 19, self.num_enemies, dtype=jnp.int32)
-        enemy_positions = jnp.stack([enemy_xs, jnp.ones_like(enemy_xs) * 2], axis=-1)
-
-        state = PhoenixState(
-            player_x=jnp.array(10, dtype=jnp.int32),
-            player_y=jnp.array(0, dtype=jnp.int32),
-            player_bullet_y=jnp.array(-1, dtype=jnp.int32),
-            bullet_active=jnp.array(0, dtype=jnp.int32),
-            enemy_positions=enemy_positions,
-            enemy_alive=jnp.ones(self.num_enemies, dtype=jnp.int32),
-            score=jnp.array(0, dtype=jnp.int32),
-            step_count=jnp.array(0, dtype=jnp.int32),
+def player_step(state: PhoenixState, action: Action) -> Tuple[chex.Array]:
+    """Step function for the player."""
+    left = jnp.any(
+        jnp.array(
+            [
+                action == Action.LEFT,
+                action == Action.UPLEFT,
+                action == Action.DOWNLEFT,
+                action == Action.LEFTFIRE,
+                action == Action.UPLEFTFIRE,
+                action == Action.DOWNLEFTFIRE,
+            ]
         )
-        obs = jnp.array([state.player_x, state.player_y, state.score], dtype=jnp.int32)
-        return obs, state
+    )
+    right = jnp.any(
+        jnp.array(
+            [
+                action == Action.RIGHT,
+                action == Action.UPRIGHT,
+                action == Action.DOWNRIGHT,
+                action == Action.RIGHTFIRE,
+                action == Action.UPRIGHTFIRE,
+                action == Action.DOWNRIGHTFIRE,
+            ]
+        )
+    )
+    player_x = jnp.where(
+        right, state.player_x + 1, jnp.where(left, state.player_x - 1, state.player_x)
+    )
+    return player_x
 
-    def step(self, state: PhoenixState, action: chex.Array) -> Tuple[chex.Array, PhoenixState, chex.Array, chex.Array, dict]:
-        rng = jax.random.PRNGKey(0)  # Replace with proper RNG handling
-        return phoenix_step(state, action, rng)
 
-    def get_action_space(self) -> chex.Array:
-        # 0: NOOP, 1: LEFT, 2: RIGHT, 3: FIRE
-        return jnp.array([0, 1, 2, 3], dtype=jnp.int32)
+#ToDo
+class JaxPhoenix(JaxEnvironment[PhoenixState, PhoenixOberservation, PhoenixInfo]):
+    @partial(jax.jit, static_argnums=(0,))
+    def _get_observation(self, state: PhoenixState) -> PhoenixOberservation:
+        player = EntityPosition(x=state.player_x, y=state.player_y)
+        return PhoenixOberservation(
+            player_x = player[0],
+            player_y= player[1],
+        )
+
+    @partial(jax.jit, static_argnums=(0,))
+    def _get_info(self, state: PhoenixState, all_rewards: jnp.ndarray) -> PhoenixInfo:
+        return PhoenixInfo(
+            step_counter=0,
+        )
+    #ToDo _get_info,_get_env_reward,_get_all_rewards,_get_done
+
+    def __init__(self):
+        super().__init__()
+        self.step_counter = 0  # Add step counter tracking
+    def reset(self, key: jax.random.PRNGKey = jax.random.PRNGKey(42)) -> Tuple[PhoenixOberservation, PhoenixState]:
+        # Reset the state
+        return_state = PhoenixState(
+            player_x=jnp.array(PLAYER_POSITION[0]),
+            player_y=jnp.array(PLAYER_POSITION[1]),
+            step_counter=jnp.array(0),
+        )
+
+        initial_obs = self._get_observation(return_state)
+        return initial_obs, return_state
+
+    def step(self,state, action: Action) -> Tuple[PhoenixOberservation, PhoenixState, float, bool, PhoenixInfo]:
+
+        #previous_state = state
+        state = state.reset()
+        return_state = PhoenixState(player_x=state.player_x, player_y=state.player_y)
+        observation = self._get_observation(return_state)
+        env_reward = 0.0 #toDO
+        done = True #toDo
+        info = self._get_info(state, env_reward)
+        observation, return_state, env_reward, done, info
+
+from jaxatari.renderers import AtraJaxisRenderer
+
+class PhoenixRenderer(AtraJaxisRenderer):
+    @partial(jax.jit, static_argnums=(0,))
+    def render(self, state):
+        raster = jnp.zeros((WIDTH, HEIGHT, 3))
+
+
+        # Render player
+
+        frame_player = aj.get_sprite_frame(SPRITE_PLAYER, 0)
+        raster = aj.render_at(raster, state.player_x, state.player_y, frame_player)
+
+
+        return raster
+
+
 
