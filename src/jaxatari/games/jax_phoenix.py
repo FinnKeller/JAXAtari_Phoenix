@@ -59,16 +59,19 @@ def load_sprites(): # load Sprites
     MODULE_DIR = os.path.dirname(os.path.abspath(__file__))
 
     # Load individual sprite frames
-    player = aj.loadFrame(os.path.join(MODULE_DIR, "./sprites/phoenix/player.npy"))
-    player = jnp.expand_dims(player, axis=0)
-
-    print("Player sprite shape:", player.shape)
+    player_sprites = aj.loadFrame(os.path.join(MODULE_DIR, "./sprites/phoenix/player.npy"))
+    SPRITE_PLAYER = jnp.expand_dims(player_sprites, axis=0)
+    bg_sprites = aj.loadFrame(os.path.join(MODULE_DIR, "./sprites/pong/background.npy"))
+    BG_SPRITE = jnp.expand_dims(bg_sprites, axis=0)
+    print("Player sprite shape:", SPRITE_PLAYER.shape)
+    # shape (5, 10,4)
     return (
-        player
+        SPRITE_PLAYER,
+        BG_SPRITE,
 
     )
 # load sprites on module layer
-SPRITE_PLAYER = load_sprites()[0]
+(SPRITE_PLAYER, SPRITE_BG) = load_sprites()
 
 
 
@@ -124,10 +127,34 @@ class JaxPhoenix(JaxEnvironment[PhoenixState, PhoenixOberservation, PhoenixInfo]
         )
     #ToDo _get_info,_get_env_reward,_get_all_rewards,_get_done
 
+    def get_action_space(self) -> jnp.ndarray:
+        return jnp.array(self.action_set)
+
     def __init__(self):
         super().__init__()
-        self.step_counter = 0  # Add step counter tracking
-    def reset(self, key: jax.random.PRNGKey = jax.random.PRNGKey(42)) -> Tuple[PhoenixOberservation, PhoenixState]:
+        self.step_counter = 0
+        self.action_set = [
+            Action.NOOP,
+            Action.FIRE,
+            Action.UP,
+            Action.RIGHT,
+            Action.LEFT,
+            Action.DOWN,
+            Action.UPRIGHT,
+            Action.UPLEFT,
+            Action.DOWNRIGHT,
+            Action.DOWNLEFT,
+            Action.UPFIRE,
+            Action.RIGHTFIRE,
+            Action.LEFTFIRE,
+            Action.DOWNFIRE,
+            Action.UPRIGHTFIRE,
+            Action.UPLEFTFIRE,
+            Action.DOWNRIGHTFIRE,
+            Action.DOWNLEFTFIRE
+        ]
+        # Add step counter tracking
+    def reset(self, key: jax.random.PRNGKey = jax.random.PRNGKey(42)) -> tuple[PhoenixOberservation, PhoenixState]:
         # Reset the state
         return_state = PhoenixState(
             player_x=jnp.array(PLAYER_POSITION[0]),
@@ -138,11 +165,11 @@ class JaxPhoenix(JaxEnvironment[PhoenixState, PhoenixOberservation, PhoenixInfo]
         initial_obs = self._get_observation(return_state)
         return initial_obs, return_state
 
-    def step(self,state, action: Action) -> Tuple[PhoenixOberservation, PhoenixState, float, bool, PhoenixInfo]:
+    def step(self,state, action: chex.Array) -> tuple[PhoenixOberservation, PhoenixState, float, bool, PhoenixInfo]:
 
         #previous_state = state
-        state = state.reset()
-        return_state = PhoenixState(player_x=state.player_x, player_y=state.player_y)
+        #state = state.reset()
+        return_state = PhoenixState(player_x=state.player_x, player_y=state.player_y, step_counter=state.step_counter)
         observation = self._get_observation(return_state)
         env_reward = 0.0 #toDO
         done = True #toDo
@@ -155,9 +182,8 @@ class PhoenixRenderer(AtraJaxisRenderer):
     @partial(jax.jit, static_argnums=(0,))
     def render(self, state):
         raster = jnp.zeros((WIDTH, HEIGHT, 3))
-
-
-        # Render player
+        frame_bg = aj.get_sprite_frame(SPRITE_BG, 0)
+        raster = aj.render_at(raster, 0, 0, frame_bg)
 
         frame_player = aj.get_sprite_frame(SPRITE_PLAYER, 0)
         raster = aj.render_at(raster, state.player_x, state.player_y, frame_player)
