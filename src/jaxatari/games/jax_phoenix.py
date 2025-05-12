@@ -6,6 +6,7 @@ import jax
 import jax.numpy as jnp
 import chex
 import pygame
+from gymnasium.envs.tabular.blackjack import score
 from jax import Array
 import jaxatari.rendering.atraJaxis as aj
 import numpy as np
@@ -34,6 +35,8 @@ MAX_BOSS = 1
 MAX_BOSS_BLOCK_GREEN = 1
 MAX_BOSS_BLOCK_BLUE = 48
 MAX_BOSS_BLOCK_RED = 104
+SCORE_COLOR = (210, 210, 64)
+
 
 # === GAME STATE ===
 class PhoenixState(NamedTuple):
@@ -44,11 +47,13 @@ class PhoenixState(NamedTuple):
     projectile_y: chex.Array = jnp.array(-1)  # Standardwert: kein Projektil
     enemies_x: chex.Array = jnp.array([-1] * MAX_PHOENIX)  # Gegner X-Positionen
     enemies_y: chex.Array = jnp.array([-1] * MAX_PHOENIX)  # Gegner Y-Positionen
+    score: chex.Array = jnp.array(0)  # Score
 
 
 class PhoenixOberservation(NamedTuple):
     player_x: chex.Array
     player_y: chex.Array
+    player_score: chex.Array
 
 class PhoenixInfo(NamedTuple):
     step_counter: jnp.ndarray
@@ -86,6 +91,8 @@ def load_sprites(): # load Sprites
     SPRITE_BAT_LOW_WING = jnp.expand_dims(bat_low_wings_sprite, axis=0)
     SPRITE_ENEMY_PROJECTILE = jnp.expand_dims(enemy_projectile, axis=0)
 
+    DIGITS = aj.load_and_pad_digits(os.path.join(MODULE_DIR, "./sprites/seaquest/digits/{}.npy"))
+
 
 
     print("Player sprite shape:", SPRITE_PLAYER.shape)
@@ -100,9 +107,10 @@ def load_sprites(): # load Sprites
         SPRITE_BAT_HIGH_WING,
         SPRITE_BAT_LOW_WING,
         SPRITE_ENEMY_PROJECTILE,
+        DIGITS,
     )
 # load sprites on module layer
-(SPRITE_PLAYER, SPRITE_BG, SPRITE_PLAYER_PROJECTILE, SPRITE_FLOOR, SPRITE_ENEMY1, SPRITE_ENEMY2, SPRITE_BAT_HIGH_WING, SPRITE_BAT_LOW_WING, SPRITE_ENEMY_PROJECTILE) = load_sprites()
+(SPRITE_PLAYER, SPRITE_BG, SPRITE_PLAYER_PROJECTILE, SPRITE_FLOOR, SPRITE_ENEMY1, SPRITE_ENEMY2, SPRITE_BAT_HIGH_WING, SPRITE_BAT_LOW_WING, SPRITE_ENEMY_PROJECTILE, DIGITS) = load_sprites()
 
 
 
@@ -164,6 +172,7 @@ class JaxPhoenix(JaxEnvironment[PhoenixState, PhoenixOberservation, PhoenixInfo]
         return PhoenixOberservation(
             player_x = player[0],
             player_y= player[1],
+            player_score = state.score,
         )
 
     @partial(jax.jit, static_argnums=(0,))
@@ -211,6 +220,8 @@ class JaxPhoenix(JaxEnvironment[PhoenixState, PhoenixOberservation, PhoenixInfo]
             step_counter=jnp.array(0),
             enemies_x = enemy_spawn_x,
             enemies_y = enemy_spawn_y,
+            projectile_x=jnp.array(-1),  # Standardwert: kein Projektil
+            score = jnp.array(0),
         )
 
         initial_obs = self._get_observation(return_state)
@@ -242,6 +253,7 @@ class JaxPhoenix(JaxEnvironment[PhoenixState, PhoenixOberservation, PhoenixInfo]
             collision_y = (projectile_y + PROJECTILE_HEIGHT > enemy_y) & (projectile_y < enemy_y + ENEMY_HEIGHT)
             return collision_x & collision_y
 
+
         # Kollisionsprüfung
         collisions = jax.vmap(lambda enemy_pos: check_collision(enemy_pos, projectile_pos))(enemy_positions)
         hit_detected = jnp.any(collisions)
@@ -251,6 +263,7 @@ class JaxPhoenix(JaxEnvironment[PhoenixState, PhoenixOberservation, PhoenixInfo]
         enemies_y = jnp.where(collisions, -1, enemies_y)
         projectile_x = jnp.where(hit_detected, -1, projectile_x)
         projectile_y = jnp.where(hit_detected, -1, projectile_y)
+        score = jnp.where(hit_detected, state.score + 100, state.score)
 
 
         #previous_state = state
@@ -263,6 +276,7 @@ class JaxPhoenix(JaxEnvironment[PhoenixState, PhoenixOberservation, PhoenixInfo]
             projectile_y = projectile_y,
             enemies_x = enemies_x,
             enemies_y = enemies_y,
+            score= score,
         )
         observation = self._get_observation(return_state)
         env_reward = jnp.where(hit_detected, 1.0, 0.0)
@@ -293,7 +307,10 @@ class PhoenixRenderer(AtraJaxisRenderer):
         frame_bat_high_wings = aj.get_sprite_frame(SPRITE_BAT_HIGH_WING, 0)
         frame_bat_low_wings = aj.get_sprite_frame(SPRITE_BAT_LOW_WING, 0)
         frame_enemy_projectile = aj.get_sprite_frame(SPRITE_ENEMY_PROJECTILE, 0)
+        #render score
 
+        score_array = aj.int_to_digits(state.score, max_digits=5) # 5 for now
+        raster = aj.render_label(raster, 10, 10, score_array, DIGITS, spacing=7)
 
         def render_enemy(raster, enemy_pos):
             x, y = enemy_pos
