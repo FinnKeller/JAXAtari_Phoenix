@@ -374,7 +374,7 @@ class PhoenixRenderer(AtraJaxisRenderer):
             raster
         )
         score_array = aj.int_to_digits(state.score, max_digits=5)  # 5 for now
-        raster = aj.render_label(raster, 60, 10, score_array, DIGITS, spacing=7)
+        raster = aj.render_label(raster, 60, 10, score_array, DIGITS, spacing=8)
         # render lives
         lives_array = aj.int_to_digits(state.lives, max_digits=2)
         lives_value = jnp.sum(lives_array)
