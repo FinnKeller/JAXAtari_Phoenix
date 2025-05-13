@@ -48,6 +48,7 @@ class PhoenixState(NamedTuple):
     enemies_x: chex.Array = jnp.array([-1] * MAX_PHOENIX)  # Gegner X-Positionen
     enemies_y: chex.Array = jnp.array([-1] * MAX_PHOENIX)  # Gegner Y-Positionen
     enemy_direction: chex.Array = jnp.array(-1)
+
     score: chex.Array = jnp.array(0)  # Score
     lives: chex.Array = jnp.array(5) # Lives
 
@@ -172,11 +173,13 @@ ENEMY_HEIGHT = 10
 
 
 def enemy_step(state): #ToDo direction
-    enemy_step_size = 2
+    enemy_step_size = 0.5
+
+    active_enemies = (state.enemies_x > -1) & (state.enemies_y < HEIGHT+10)
 
     # Prüfen, ob ein Gegner die linke oder rechte Grenze erreicht hat
-    at_left_boundary = jnp.any(jnp.logical_and(state.enemies_x <= PLAYER_BOUNDS[0], state.enemies_x >= -1))
-    at_right_boundary = jnp.any(state.enemies_x >= PLAYER_BOUNDS[1])
+    at_left_boundary = jnp.any(jnp.logical_and(state.enemies_x <= PLAYER_BOUNDS[0], active_enemies))
+    at_right_boundary = jnp.any(jnp.logical_and(state.enemies_x >= PLAYER_BOUNDS[1] - ENEMY_WIDTH/2, active_enemies))
 
     # Richtung ändern, wenn eine Grenze erreicht wird
     new_direction = jax.lax.cond(
@@ -189,8 +192,8 @@ def enemy_step(state): #ToDo direction
         ),
     )
 
-    # Gegner basierend auf der Richtung bewegen
-    new_enemies_x = state.enemies_x + (new_direction * enemy_step_size)
+    # Gegner basierend auf der Richtung bewegen, nur aktive Gegner
+    new_enemies_x = jnp.where(active_enemies, state.enemies_x + (new_direction * enemy_step_size), state.enemies_x)
 
     # Begrenzung der Positionen innerhalb des Spielfelds
     new_enemies_x = jnp.clip(new_enemies_x, PLAYER_BOUNDS[0], PLAYER_BOUNDS[1])
@@ -274,7 +277,7 @@ class JaxPhoenix(JaxEnvironment[PhoenixState, PhoenixOberservation, PhoenixInfo]
 
         can_fire = state.projectile_y < 0
         projectile_x = jnp.where((action == Action.FIRE) & can_fire, state.player_x + 2, state.projectile_x)
-        projectile_y = jnp.where((action == Action.FIRE) & can_fire, state.player_y - 1, state.projectile_y - 3) # durch das -3 wird das Projektil schneller
+        projectile_y = jnp.where((action == Action.FIRE) & can_fire, state.player_y - 1, state.projectile_y - 5) # durch das -3 wird das Projektil schneller (Projektil geschwindigkeit)
 
         # Projektil entfernen, wenn es obere Grenze erreicht:
         projectile_y = jnp.where(projectile_y < 0, -6, projectile_y)
@@ -301,7 +304,7 @@ class JaxPhoenix(JaxEnvironment[PhoenixState, PhoenixOberservation, PhoenixInfo]
 
         # Gegner und Projektil entfernen wenn eine Kollision erkannt wurde
         enemies_x = jnp.where(collisions, -1, enemies_x)
-        enemies_y = jnp.where(collisions, -1, enemies_y)
+        enemies_y = jnp.where(collisions, HEIGHT+20, enemies_y)
         projectile_x = jnp.where(hit_detected, -1, projectile_x)
         projectile_y = jnp.where(hit_detected, -1, projectile_y)
         score = jnp.where(hit_detected, state.score + 100, state.score)
