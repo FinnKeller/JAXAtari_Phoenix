@@ -10,7 +10,7 @@ from gymnasium.envs.tabular.blackjack import score
 from jax import Array
 import jaxatari.rendering.atraJaxis as aj
 import numpy as np
-
+from enum import Enum
 from jaxatari.environment import JaxEnvironment, JAXAtariAction as Action
 from jaxatari.games.jax_kangaroo import PLAYER_WIDTH
 
@@ -47,6 +47,7 @@ class PhoenixState(NamedTuple):
     projectile_y: chex.Array = jnp.array(-1)  # Standardwert: kein Projektil
     enemies_x: chex.Array = jnp.array([-1] * MAX_PHOENIX)  # Gegner X-Positionen
     enemies_y: chex.Array = jnp.array([-1] * MAX_PHOENIX)  # Gegner Y-Positionen
+    enemy_direction: chex.Array = jnp.array(-1)
     score: chex.Array = jnp.array(0)  # Score
     lives: chex.Array = jnp.array(5) # Lives
 
@@ -169,6 +170,34 @@ PROJECTILE_HEIGHT = 4
 ENEMY_WIDTH = 10
 ENEMY_HEIGHT = 10
 
+
+def enemy_step(state): #ToDo direction
+    enemy_step_size = 2
+
+    # Prüfen, ob ein Gegner die linke oder rechte Grenze erreicht hat
+    at_left_boundary = jnp.any(jnp.logical_and(state.enemies_x <= PLAYER_BOUNDS[0], state.enemies_x >= -1))
+    at_right_boundary = jnp.any(state.enemies_x >= PLAYER_BOUNDS[1])
+
+    # Richtung ändern, wenn eine Grenze erreicht wird
+    new_direction = jax.lax.cond(
+        at_left_boundary,
+        lambda: 1,  # Nach rechts bewegen
+        lambda: jax.lax.cond(
+            at_right_boundary,
+            lambda: -1,  # Nach links bewegen
+            lambda: state.enemy_direction,  # Richtung beibehalten
+        ),
+    )
+
+    # Gegner basierend auf der Richtung bewegen
+    new_enemies_x = state.enemies_x + (new_direction * enemy_step_size)
+
+    # Begrenzung der Positionen innerhalb des Spielfelds
+    new_enemies_x = jnp.clip(new_enemies_x, PLAYER_BOUNDS[0], PLAYER_BOUNDS[1])
+
+    # Aktualisierten Zustand zurückgeben
+    return new_enemies_x, new_direction
+
 #ToDo
 class JaxPhoenix(JaxEnvironment[PhoenixState, PhoenixOberservation, PhoenixInfo]):
     @partial(jax.jit, static_argnums=(0,))
@@ -214,8 +243,14 @@ class JaxPhoenix(JaxEnvironment[PhoenixState, PhoenixOberservation, PhoenixInfo]
         ]# Add step counter tracking
     def reset(self, key: jax.random.PRNGKey = jax.random.PRNGKey(42)) -> Tuple[PhoenixOberservation, PhoenixState]:
         # Jax kompatibles Random
-        enemy_spawn_x = jax.random.randint(key, (MAX_PHOENIX,), 0, WIDTH - ENEMY_WIDTH)
-        enemy_spawn_y = jax.random.randint(key, (MAX_PHOENIX,), 0, HEIGHT // 2 - 20,)
+
+        enemy_spawn_x = jnp.array([123 - WIDTH//2, 123 -WIDTH//2, 136-WIDTH//2, 136-WIDTH//2, 160-WIDTH//2, 160-WIDTH//2, 174-WIDTH//2, 174-WIDTH//2])
+        enemy_spawn_y = jnp.array([HEIGHT-135,HEIGHT- 153,HEIGHT- 117,HEIGHT- 171,HEIGHT- 117,HEIGHT- 171,HEIGHT- 135,HEIGHT- 153])
+
+        # 136x - 117y, 171y
+        # 123x - 135y, 153y
+        # 160x - 117y, 171y
+        # 174x - 135y, 153y
 
 
         # Reset the state
@@ -225,6 +260,7 @@ class JaxPhoenix(JaxEnvironment[PhoenixState, PhoenixOberservation, PhoenixInfo]
             step_counter=jnp.array(0),
             enemies_x = enemy_spawn_x,
             enemies_y = enemy_spawn_y,
+            enemy_direction = jnp.array(-1),
             projectile_x=jnp.array(-1),  # Standardwert: kein Projektil
             score = jnp.array(0),
         )
@@ -247,6 +283,8 @@ class JaxPhoenix(JaxEnvironment[PhoenixState, PhoenixOberservation, PhoenixInfo]
         enemies_x = state.enemies_x
         enemies_y = state.enemies_y
 
+        enemies_x, enemy_direction = enemy_step(state)
+
         projectile_pos = jnp.array([projectile_x, projectile_y])
         enemy_positions = jnp.stack((enemies_x, enemies_y), axis=1)
 
@@ -257,8 +295,6 @@ class JaxPhoenix(JaxEnvironment[PhoenixState, PhoenixOberservation, PhoenixInfo]
             collision_x = (projectile_x + PROJECTILE_WIDTH > enemy_x) & (projectile_x < enemy_x + ENEMY_WIDTH)
             collision_y = (projectile_y + PROJECTILE_HEIGHT > enemy_y) & (projectile_y < enemy_y + ENEMY_HEIGHT)
             return collision_x & collision_y
-
-
         # Kollisionsprüfung
         collisions = jax.vmap(lambda enemy_pos: check_collision(enemy_pos, projectile_pos))(enemy_positions)
         hit_detected = jnp.any(collisions)
@@ -281,6 +317,7 @@ class JaxPhoenix(JaxEnvironment[PhoenixState, PhoenixOberservation, PhoenixInfo]
             projectile_y = projectile_y,
             enemies_x = enemies_x,
             enemies_y = enemies_y,
+            enemy_direction = enemy_direction,
             score= score,
         )
         observation = self._get_observation(return_state)
