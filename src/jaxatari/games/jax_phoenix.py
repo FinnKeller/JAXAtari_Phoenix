@@ -1,4 +1,5 @@
 import os
+import time
 from functools import partial
 from operator import truediv
 from typing import Tuple, NamedTuple
@@ -28,6 +29,8 @@ SCALING_FACTOR = 3
 PLAYER_POSITION = 76, 175
 PLAYER_COLOR = (213, 130, 74)
 PLAYER_BOUNDS = (0, 155) # (left, right)
+ENEMY_POSITIONS_X = jnp.array([123 - WIDTH//2, 123 -WIDTH//2, 136-WIDTH//2, 136-WIDTH//2, 160-WIDTH//2, 160-WIDTH//2, 174-WIDTH//2, 174-WIDTH//2])
+ENEMY_POSITIONS_Y = jnp.array([HEIGHT-135,HEIGHT- 153,HEIGHT- 117,HEIGHT- 171,HEIGHT- 117,HEIGHT- 171,HEIGHT- 135,HEIGHT- 153])
 # MAX number of Objects
 MAX_PLAYER = 1
 MAX_PLAYER_PROJECTILE = 1
@@ -254,8 +257,8 @@ class JaxPhoenix(JaxEnvironment[PhoenixState, PhoenixOberservation, PhoenixInfo]
     def reset(self, key: jax.random.PRNGKey = jax.random.PRNGKey(42)) -> Tuple[PhoenixOberservation, PhoenixState]:
         # Jax kompatibles Random
 
-        enemy_spawn_x = jnp.array([123 - WIDTH//2, 123 -WIDTH//2, 136-WIDTH//2, 136-WIDTH//2, 160-WIDTH//2, 160-WIDTH//2, 174-WIDTH//2, 174-WIDTH//2])
-        enemy_spawn_y = jnp.array([HEIGHT-135,HEIGHT- 153,HEIGHT- 117,HEIGHT- 171,HEIGHT- 117,HEIGHT- 171,HEIGHT- 135,HEIGHT- 153])
+        enemy_spawn_x = ENEMY_POSITIONS_X
+        enemy_spawn_y = ENEMY_POSITIONS_Y
 
         # 136x - 117y, 171y
         # 123x - 135y, 153y
@@ -293,6 +296,7 @@ class JaxPhoenix(JaxEnvironment[PhoenixState, PhoenixOberservation, PhoenixInfo]
         projectile_y = jnp.where(projectile_y < 0, -6, projectile_y)
 
 
+
         enemies_x = state.enemies_x
         enemies_y = state.enemies_y
 
@@ -312,38 +316,40 @@ class JaxPhoenix(JaxEnvironment[PhoenixState, PhoenixOberservation, PhoenixInfo]
         enemy_fire_mask = enemy_should_fire & can_fire
 
         # Fire from current enemy positions
-        new_enemy_projectile_x = jnp.where(enemy_fire_mask, state.enemies_x + ENEMY_WIDTH // 2,
+        enemy_projectile_x = jnp.where(enemy_fire_mask, state.enemies_x + ENEMY_WIDTH // 2,
                                            state.enemy_projectile_x)
-        new_enemy_projectile_y = jnp.where(enemy_fire_mask, state.enemies_y + ENEMY_HEIGHT, state.enemy_projectile_y)
+        enemy_projectile_y = jnp.where(enemy_fire_mask, state.enemies_y + ENEMY_HEIGHT, state.enemy_projectile_y)
 
         # Move enemy projectiles downwards
-        new_enemy_projectile_y = jnp.where(state.enemy_projectile_y >= 0, state.enemy_projectile_y + 4,
-                                           new_enemy_projectile_y)
+        enemy_projectile_y = jnp.where(state.enemy_projectile_y >= 0, state.enemy_projectile_y + 4, # +4 regelt enemy projectile speed
+                                           enemy_projectile_y)
 
         # Remove if off-screen
-        new_enemy_projectile_y = jnp.where(new_enemy_projectile_y > HEIGHT, -1, new_enemy_projectile_y)
+        enemy_projectile_y = jnp.where(enemy_projectile_y > 185 - PROJECTILE_HEIGHT, -1, enemy_projectile_y)
+
 
         projectile_pos = jnp.array([projectile_x, projectile_y])
         enemy_positions = jnp.stack((enemies_x, enemies_y), axis=1)
 
-        def check_collision(enemy_pos, projectile_pos):
-            enemy_x, enemy_y = enemy_pos
+        def check_collision(entity_pos, projectile_pos):
+            enemy_x, enemy_y = entity_pos
             projectile_x, projectile_y = projectile_pos
 
             collision_x = (projectile_x + PROJECTILE_WIDTH > enemy_x) & (projectile_x < enemy_x + ENEMY_WIDTH)
             collision_y = (projectile_y + PROJECTILE_HEIGHT > enemy_y) & (projectile_y < enemy_y + ENEMY_HEIGHT)
             return collision_x & collision_y
 
-        # Kollisionsprüfung
-        collisions = jax.vmap(lambda enemy_pos: check_collision(enemy_pos, projectile_pos))(enemy_positions)
-        hit_detected = jnp.any(collisions)
+        # Kollisionsprüfung Gegner
+        enemy_collisions = jax.vmap(lambda enemy_pos: check_collision(enemy_pos, projectile_pos))(enemy_positions)
+        enemy_hit_detected = jnp.any(enemy_collisions)
+
 
         # Gegner und Projektil entfernen wenn eine Kollision erkannt wurde
-        enemies_x = jnp.where(collisions, -1, enemies_x)
-        enemies_y = jnp.where(collisions, HEIGHT+20, enemies_y)
-        projectile_x = jnp.where(hit_detected, -1, projectile_x)
-        projectile_y = jnp.where(hit_detected, -1, projectile_y)
-        score = jnp.where(hit_detected, state.score + 100, state.score)
+        enemies_x = jnp.where(enemy_collisions, -1, enemies_x)
+        enemies_y = jnp.where(enemy_collisions, HEIGHT+20, enemies_y)
+        projectile_x = jnp.where(enemy_hit_detected, -1, projectile_x)
+        projectile_y = jnp.where(enemy_hit_detected, -1, projectile_y)
+        score = jnp.where(enemy_hit_detected, state.score + 100, state.score)
 
         def check_player_hit(projectile_xs, projectile_ys, player_x, player_y):
             def is_hit(px, py):
@@ -354,13 +360,20 @@ class JaxPhoenix(JaxEnvironment[PhoenixState, PhoenixOberservation, PhoenixInfo]
             hits = jax.vmap(is_hit)(projectile_xs, projectile_ys)
             return jnp.any(hits)
 
-        enemy_projectile_y = jnp.where(state.enemy_projectile_y >= 0, state.enemy_projectile_y + 2,
-                                       state.enemy_projectile_y)
-        enemy_projectile_y = jnp.where(enemy_projectile_y > HEIGHT, -1, enemy_projectile_y)  # Despawn
 
-        # Collision check: enemy projectile hits player
-        player_hit = check_player_hit(state.enemy_projectile_x, enemy_projectile_y, player_x, state.player_y)
-        new_lives = jnp.where(player_hit, state.lives - 1, state.lives)
+        # Kollisionsüberprüfung Spieler (Remaining lives updaten und Spieler neu Spawnen)
+        player_hit_detected = check_player_hit(state.enemy_projectile_x, enemy_projectile_y, player_x, state.player_y)
+        new_lives = jnp.where(player_hit_detected, state.lives - 1, state.lives)
+        player_x = jnp.where(player_hit_detected, PLAYER_POSITION[0], player_step(state, action))
+        # ToDo Gegner neu spawnen
+        enemies_x = jnp.where(jnp.logical_and(player_hit_detected, enemies_x > -1), ENEMY_POSITIONS_X,enemies_x )
+        enemies_y = jnp.where(jnp.logical_and(player_hit_detected, enemies_x > -1), ENEMY_POSITIONS_Y, enemies_y)
+
+
+        # Enemy Projectile entfernen wenn eine Kollision mit dem Spieler erkannt wurde
+        enemy_projectile_x = jnp.where(player_hit_detected, -1, enemy_projectile_x)
+        enemy_projectile_y = jnp.where(player_hit_detected, -1, enemy_projectile_y)
+
 
         #previous_state = state
         #state = state.reset()
@@ -374,8 +387,8 @@ class JaxPhoenix(JaxEnvironment[PhoenixState, PhoenixOberservation, PhoenixInfo]
             enemies_y = enemies_y,
             enemy_direction = enemy_direction,
             score= score,
-            enemy_projectile_x=new_enemy_projectile_x,
-            enemy_projectile_y=new_enemy_projectile_y,
+            enemy_projectile_x=enemy_projectile_x,
+            enemy_projectile_y=enemy_projectile_y,
             lives=new_lives
         )
         observation = self._get_observation(return_state)
