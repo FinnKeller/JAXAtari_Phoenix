@@ -226,7 +226,7 @@ class JaxPhoenix(JaxEnvironment[PhoenixState, PhoenixOberservation, PhoenixInfo]
         )
     @partial(jax.jit, static_argnums=(0,))
     def _get_done(self, state: PhoenixState) -> bool:
-        return state.lives <= 0
+        return state.lives <= 0 # TODO does not work yet; why?
     #ToDo _get_info,_get_env_reward,_get_all_rewards,_get_done
     def get_action_space(self) -> jnp.ndarray:
         return jnp.array(self.action_set)
