@@ -52,9 +52,9 @@ class PhoenixState(NamedTuple):
     projectile_y: chex.Array = jnp.array(-1)  # Standardwert: kein Projektil
     enemies_x: chex.Array = jnp.array([-1] * MAX_PHOENIX)  # Gegner X-Positionen
     enemies_y: chex.Array = jnp.array([-1] * MAX_PHOENIX)  # Gegner Y-Positionen
-    enemy_direction: chex.Array = jnp.array(-1)
-    enemy_projectile_x: chex.Array = jnp.full((MAX_PHOENIX,), -1)
-    enemy_projectile_y: chex.Array = jnp.full((MAX_PHOENIX,), -1)
+    enemy_direction: chex.Array = jnp.array(-1) # Bewegungsrichtung der Gegner
+    enemy_projectile_x: chex.Array = jnp.full((MAX_PHOENIX,), -1) # Enemy projectile X-Positionen
+    enemy_projectile_y: chex.Array = jnp.full((MAX_PHOENIX,), -1) # Enemy projectile Y-Positionen
 
     score: chex.Array = jnp.array(0)  # Score
     lives: chex.Array = jnp.array(5) # Lives
@@ -172,7 +172,7 @@ def player_step(
     return player_x
 
 
-# Größe der Sprites (Beispielwerte, anpassen falls nötig)
+# Größe der Sprites
 PROJECTILE_WIDTH = 2
 PROJECTILE_HEIGHT = 4
 ENEMY_WIDTH = 10
@@ -208,7 +208,7 @@ def enemy_step(state): #ToDo direction
     # Aktualisierten Zustand zurückgeben
     return new_enemies_x, new_direction
 
-#ToDo
+
 class JaxPhoenix(JaxEnvironment[PhoenixState, PhoenixOberservation, PhoenixInfo]):
     @partial(jax.jit, static_argnums=(0,))
     def _get_observation(self, state: PhoenixState) -> PhoenixOberservation:
@@ -257,14 +257,9 @@ class JaxPhoenix(JaxEnvironment[PhoenixState, PhoenixOberservation, PhoenixInfo]
     def reset(self, key: jax.random.PRNGKey = jax.random.PRNGKey(42)) -> Tuple[PhoenixOberservation, PhoenixState]:
         # Jax kompatibles Random
 
+        # Initialisierung der Gegnerpositionen
         enemy_spawn_x = ENEMY_POSITIONS_X
         enemy_spawn_y = ENEMY_POSITIONS_Y
-
-        # 136x - 117y, 171y
-        # 123x - 135y, 153y
-        # 160x - 117y, 171y
-        # 174x - 135y, 153y
-
 
         # Reset the state
         return_state = PhoenixState(
@@ -277,8 +272,8 @@ class JaxPhoenix(JaxEnvironment[PhoenixState, PhoenixOberservation, PhoenixInfo]
             enemy_projectile_x=jnp.full((MAX_PHOENIX,), -1),
             enemy_projectile_y=jnp.full((MAX_PHOENIX,), -1),
             projectile_x=jnp.array(-1),  # Standardwert: kein Projektil
-            score = jnp.array(0),
-            lives=jnp.array(5),
+            score = jnp.array(0), # Standardwert: Score=0
+            lives=jnp.array(5), # Standardwert: 5 Leben
         )
 
         initial_obs = self._get_observation(return_state)
@@ -299,13 +294,16 @@ class JaxPhoenix(JaxEnvironment[PhoenixState, PhoenixOberservation, PhoenixInfo]
         enemies_x = state.enemies_x
         enemies_y = state.enemies_y
 
+        # Move enemies
         enemies_x, enemy_direction = enemy_step(state)
 
         ###Enemy shooting
+        # use step_counter for randomness
+        def generate_fire_key_and_chance(step_counter: int, fire_chance: float) -> Tuple[jax.random.PRNGKey, float]:
+            key = jax.random.PRNGKey(step_counter)
+            return key, fire_chance
 
-        #ToDo aulagern in eigene Methode
-        key = jax.random.PRNGKey(state.step_counter)  # use step_counter for randomness
-        fire_chance = 0.005  # 2% chance per enemy per frame
+        key, fire_chance = generate_fire_key_and_chance(state.step_counter, 0.005)  # 2% chance per enemy per frame
 
         # Random decision: should each enemy fire?
         enemy_should_fire = jax.random.uniform(key, (MAX_PHOENIX,)) < fire_chance
@@ -323,7 +321,7 @@ class JaxPhoenix(JaxEnvironment[PhoenixState, PhoenixOberservation, PhoenixInfo]
         enemy_projectile_y = jnp.where(state.enemy_projectile_y >= 0, state.enemy_projectile_y + 4, # +4 regelt enemy projectile speed
                                            enemy_projectile_y)
 
-        # Remove if off-screen
+        # Remove enemy projectile if off-screen
         enemy_projectile_y = jnp.where(enemy_projectile_y > 185 - PROJECTILE_HEIGHT, -1, enemy_projectile_y)
 
 
@@ -435,12 +433,13 @@ class PhoenixRenderer(AtraJaxisRenderer):
         enemy_positions = jnp.stack((state.enemies_x, state.enemies_y), axis=1)
         raster, _ = jax.lax.scan(render_enemy, raster, enemy_positions)
 
-        def render_projectile(r):
+        # Render player projectiles
+        def render_player_projectile(r):
             return aj.render_at(r, state.projectile_x, state.projectile_y, frame_projectile)
 
         raster = jax.lax.cond(
             state.projectile_x > -1,
-            render_projectile,
+            render_player_projectile,
             lambda r: r,
             raster
         )
@@ -454,8 +453,10 @@ class PhoenixRenderer(AtraJaxisRenderer):
                 raster
             ), None
 
+        # render enemy projectiles
         enemy_proj_positions = jnp.stack((state.enemy_projectile_x, state.enemy_projectile_y), axis=1)
         raster, _ = jax.lax.scan(render_enemy_projectile, raster, enemy_proj_positions)
+        # render score
         score_array = aj.int_to_digits(state.score, max_digits=5)  # 5 for now
         raster = aj.render_label(raster, 60, 10, score_array, DIGITS, spacing=8)
         # render lives
