@@ -14,6 +14,8 @@ from enum import Enum
 from jaxatari.environment import JaxEnvironment, JAXAtariAction as Action
 from jaxatari.games.jax_kangaroo import PLAYER_WIDTH
 
+# Phoenix Game by: Florian Schmidt, Finn Keller
+
 # Game Constants
 WINDOW_WIDTH = 160 * 3
 WINDOW_HEIGHT = 210 * 3
@@ -219,6 +221,9 @@ class JaxPhoenix(JaxEnvironment[PhoenixState, PhoenixOberservation, PhoenixInfo]
         return PhoenixInfo(
             step_counter=0,
         )
+    @partial(jax.jit, static_argnums=(0,))
+    def _get_done(self, state: PhoenixState) -> bool:
+        return state.lives < 0
     #ToDo _get_info,_get_env_reward,_get_all_rewards,_get_done
     def get_action_space(self) -> jnp.ndarray:
         return jnp.array(self.action_set)
@@ -270,6 +275,7 @@ class JaxPhoenix(JaxEnvironment[PhoenixState, PhoenixOberservation, PhoenixInfo]
             enemy_projectile_y=jnp.full((MAX_PHOENIX,), -1),
             projectile_x=jnp.array(-1),  # Standardwert: kein Projektil
             score = jnp.array(0),
+            lives=jnp.array(5),
         )
 
         initial_obs = self._get_observation(return_state)
@@ -373,8 +379,8 @@ class JaxPhoenix(JaxEnvironment[PhoenixState, PhoenixOberservation, PhoenixInfo]
             lives=new_lives
         )
         observation = self._get_observation(return_state)
-        env_reward = jnp.where(hit_detected, 1.0, 0.0)
-        done = False #toDo
+        env_reward = jnp.where(enemy_hit_detected, 1.0, 0.0)
+        done = self._get_done(return_state)
         info = self._get_info(return_state, env_reward)
         return observation, return_state, env_reward, done, info
 
