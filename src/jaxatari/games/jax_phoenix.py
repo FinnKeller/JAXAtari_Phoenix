@@ -226,7 +226,7 @@ class JaxPhoenix(JaxEnvironment[PhoenixState, PhoenixOberservation, PhoenixInfo]
         )
     @partial(jax.jit, static_argnums=(0,))
     def _get_done(self, state: PhoenixState) -> bool:
-        return state.lives < 0
+        return state.lives <= 0
     #ToDo _get_info,_get_env_reward,_get_all_rewards,_get_done
     def get_action_space(self) -> jnp.ndarray:
         return jnp.array(self.action_set)
@@ -296,7 +296,6 @@ class JaxPhoenix(JaxEnvironment[PhoenixState, PhoenixOberservation, PhoenixInfo]
         projectile_y = jnp.where(projectile_y < 0, -6, projectile_y)
 
 
-
         enemies_x = state.enemies_x
         enemies_y = state.enemies_y
 
@@ -361,19 +360,20 @@ class JaxPhoenix(JaxEnvironment[PhoenixState, PhoenixOberservation, PhoenixInfo]
             return jnp.any(hits)
 
 
-        # Kollisionsüberprüfung Spieler (Remaining lives updaten und Spieler neu Spawnen)
+        # Kollisionsüberprüfung Spieler
+        # Remaining lives updaten und Spieler neu Spawnen
         player_hit_detected = check_player_hit(state.enemy_projectile_x, enemy_projectile_y, player_x, state.player_y)
-        new_lives = jnp.where(player_hit_detected, state.lives - 1, state.lives)
+        lives = jnp.where(player_hit_detected, state.lives - 1, state.lives)
         player_x = jnp.where(player_hit_detected, PLAYER_POSITION[0], player_step(state, action))
-        # ToDo Gegner neu spawnen
-        enemies_x = jnp.where(jnp.logical_and(player_hit_detected, enemies_x > -1), ENEMY_POSITIONS_X,enemies_x )
-        enemies_y = jnp.where(jnp.logical_and(player_hit_detected, enemies_x > -1), ENEMY_POSITIONS_Y, enemies_y)
+        # Respawn remaining enemies
+        enemies_x = jnp.where(jnp.logical_and(player_hit_detected, (state.enemies_x > -1) & (state.enemies_y < HEIGHT+10)), ENEMY_POSITIONS_X,enemies_x )
+        enemies_y = jnp.where(jnp.logical_and(player_hit_detected, (state.enemies_x > -1) & (state.enemies_y < HEIGHT+10)), ENEMY_POSITIONS_Y, enemies_y)
+
 
 
         # Enemy Projectile entfernen wenn eine Kollision mit dem Spieler erkannt wurde
         enemy_projectile_x = jnp.where(player_hit_detected, -1, enemy_projectile_x)
         enemy_projectile_y = jnp.where(player_hit_detected, -1, enemy_projectile_y)
-
 
         #previous_state = state
         #state = state.reset()
@@ -389,7 +389,7 @@ class JaxPhoenix(JaxEnvironment[PhoenixState, PhoenixOberservation, PhoenixInfo]
             score= score,
             enemy_projectile_x=enemy_projectile_x,
             enemy_projectile_y=enemy_projectile_y,
-            lives=new_lives
+            lives=lives
         )
         observation = self._get_observation(return_state)
         env_reward = jnp.where(enemy_hit_detected, 1.0, 0.0)
@@ -459,8 +459,7 @@ class PhoenixRenderer(AtraJaxisRenderer):
         score_array = aj.int_to_digits(state.score, max_digits=5)  # 5 for now
         raster = aj.render_label(raster, 60, 10, score_array, DIGITS, spacing=8)
         # render lives
-        lives_array = aj.int_to_digits(state.lives, max_digits=2)
-        lives_value = jnp.sum(lives_array)
+        lives_value = jnp.sum(aj.int_to_digits(state.lives, max_digits=2))
         raster = aj.render_indicator(raster, 70, 20, lives_value, LIFE_INDICATOR, spacing=4)
 
         return raster
