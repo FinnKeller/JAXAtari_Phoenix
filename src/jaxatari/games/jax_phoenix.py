@@ -29,9 +29,12 @@ SCALING_FACTOR = 3
 PLAYER_POSITION = 76, 175
 PLAYER_COLOR = (213, 130, 74)
 PLAYER_BOUNDS = (0, 155) # (left, right)
+# Enemy Positions for level 1
 ENEMY_POSITIONS_X = jnp.array([123 - WIDTH//2, 123 -WIDTH//2, 136-WIDTH//2, 136-WIDTH//2, 160-WIDTH//2, 160-WIDTH//2, 174-WIDTH//2, 174-WIDTH//2])
 ENEMY_POSITIONS_Y = jnp.array([HEIGHT-135,HEIGHT- 153,HEIGHT- 117,HEIGHT- 171,HEIGHT- 117,HEIGHT- 171,HEIGHT- 135,HEIGHT- 153])
-# MAX number of Objects
+# Enemy Positions for Level 2
+ENEMY_POSITIONS_Y_2 = jnp.array([HEIGHT-171, HEIGHT-171, HEIGHT-135, HEIGHT-135, HEIGHT-153, HEIGHT-153, HEIGHT-117, HEIGHT-117])
+ENEMY_POSITIONS_X_2 = jnp.array([141 - WIDTH//2, 155 - WIDTH//2, 127- WIDTH//2, 169 - WIDTH//2,134 - WIDTH//2, 162 - WIDTH//2, 120 - WIDTH//2, 176 - WIDTH//2])
 MAX_PLAYER = 1
 MAX_PLAYER_PROJECTILE = 1
 MAX_PHOENIX = 8
@@ -58,6 +61,7 @@ class PhoenixState(NamedTuple):
 
     score: chex.Array = jnp.array(0)  # Score
     lives: chex.Array = jnp.array(5) # Lives
+    player_respawn_timer: chex.Array = 0 # Invincibility timer
 
 
 
@@ -65,7 +69,7 @@ class PhoenixOberservation(NamedTuple):
     player_x: chex.Array
     player_y: chex.Array
     player_score: chex.Array
-    lives = chex.Array
+    lives: chex.Array
 
 class PhoenixInfo(NamedTuple):
     step_counter: jnp.ndarray
@@ -179,7 +183,7 @@ ENEMY_WIDTH = 10
 ENEMY_HEIGHT = 10
 
 
-def enemy_step(state): #ToDo direction
+def enemy_step(state):
     enemy_step_size = 0.5
 
     active_enemies = (state.enemies_x > -1) & (state.enemies_y < HEIGHT+10)
@@ -217,6 +221,7 @@ class JaxPhoenix(JaxEnvironment[PhoenixState, PhoenixOberservation, PhoenixInfo]
             player_x = player[0],
             player_y= player[1],
             player_score = state.score,
+            lives= state.lives
         )
 
     @partial(jax.jit, static_argnums=(0,))
@@ -224,10 +229,10 @@ class JaxPhoenix(JaxEnvironment[PhoenixState, PhoenixOberservation, PhoenixInfo]
         return PhoenixInfo(
             step_counter=0,
         )
+
     @partial(jax.jit, static_argnums=(0,))
-    def _get_done(self, state: PhoenixState) -> bool:
-        return state.lives <= 0 # TODO does not work yet; why?
-    #ToDo _get_info,_get_env_reward,_get_all_rewards,_get_done
+    def _get_done(self, state: PhoenixState) -> Tuple[bool, PhoenixState]:
+        return jnp.less_equal(state.lives,0)
     def get_action_space(self) -> jnp.ndarray:
         return jnp.array(self.action_set)
 
@@ -255,13 +260,11 @@ class JaxPhoenix(JaxEnvironment[PhoenixState, PhoenixOberservation, PhoenixInfo]
             Action.DOWNLEFTFIRE
         ]# Add step counter tracking
     def reset(self, key: jax.random.PRNGKey = jax.random.PRNGKey(42)) -> Tuple[PhoenixOberservation, PhoenixState]:
-        # Jax kompatibles Random
 
         # Initialisierung der Gegnerpositionen
         enemy_spawn_x = ENEMY_POSITIONS_X
         enemy_spawn_y = ENEMY_POSITIONS_Y
 
-        # Reset the state
         return_state = PhoenixState(
             player_x=jnp.array(PLAYER_POSITION[0]),
             player_y=jnp.array(PLAYER_POSITION[1]),
@@ -274,6 +277,7 @@ class JaxPhoenix(JaxEnvironment[PhoenixState, PhoenixOberservation, PhoenixInfo]
             projectile_x=jnp.array(-1),  # Standardwert: kein Projektil
             score = jnp.array(0), # Standardwert: Score=0
             lives=jnp.array(5), # Standardwert: 5 Leben
+            player_respawn_timer=jnp.array(5),
         )
 
         initial_obs = self._get_observation(return_state)
@@ -360,9 +364,15 @@ class JaxPhoenix(JaxEnvironment[PhoenixState, PhoenixOberservation, PhoenixInfo]
 
         # Kollisionsüberprüfung Spieler
         # Remaining lives updaten und Spieler neu Spawnen
-        player_hit_detected = check_player_hit(state.enemy_projectile_x, enemy_projectile_y, player_x, state.player_y)
+        is_vulnerable = state.player_respawn_timer <= 0
+        player_hit_detected = jnp.where(is_vulnerable, check_player_hit(state.enemy_projectile_x, enemy_projectile_y, player_x, state.player_y), False)
         lives = jnp.where(player_hit_detected, state.lives - 1, state.lives)
         player_x = jnp.where(player_hit_detected, PLAYER_POSITION[0], player_step(state, action))
+        player_respawn_timer = jnp.where(
+            player_hit_detected,
+            5,
+            jnp.maximum(state.player_respawn_timer - 1, 0)
+        )
         # Respawn remaining enemies
         enemies_x = jnp.where(jnp.logical_and(player_hit_detected, (state.enemies_x > -1) & (state.enemies_y < HEIGHT+10)), ENEMY_POSITIONS_X,enemies_x )
         enemies_y = jnp.where(jnp.logical_and(player_hit_detected, (state.enemies_x > -1) & (state.enemies_y < HEIGHT+10)), ENEMY_POSITIONS_Y, enemies_y)
@@ -373,8 +383,6 @@ class JaxPhoenix(JaxEnvironment[PhoenixState, PhoenixOberservation, PhoenixInfo]
         enemy_projectile_x = jnp.where(player_hit_detected, -1, enemy_projectile_x)
         enemy_projectile_y = jnp.where(player_hit_detected, -1, enemy_projectile_y)
 
-        #previous_state = state
-        #state = state.reset()
         return_state = PhoenixState(
             player_x = player_x,
             player_y = state.player_y,
@@ -387,7 +395,8 @@ class JaxPhoenix(JaxEnvironment[PhoenixState, PhoenixOberservation, PhoenixInfo]
             score= score,
             enemy_projectile_x=enemy_projectile_x,
             enemy_projectile_y=enemy_projectile_y,
-            lives=lives
+            lives=lives,
+            player_respawn_timer = player_respawn_timer
         )
         observation = self._get_observation(return_state)
         env_reward = jnp.where(enemy_hit_detected, 1.0, 0.0)
