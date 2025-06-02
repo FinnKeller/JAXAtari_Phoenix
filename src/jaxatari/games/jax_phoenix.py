@@ -62,6 +62,7 @@ class PhoenixState(NamedTuple):
     score: chex.Array = jnp.array(0)  # Score
     lives: chex.Array = jnp.array(5) # Lives
     player_respawn_timer: chex.Array = 0 # Invincibility timer
+    level: chex.Array = jnp.array(1)  # Level, starts at 1
 
 
 
@@ -352,6 +353,16 @@ class JaxPhoenix(JaxEnvironment[PhoenixState, PhoenixOberservation, PhoenixInfo]
         projectile_y = jnp.where(enemy_hit_detected, -1, projectile_y)
         score = jnp.where(enemy_hit_detected, state.score + 100, state.score)
 
+        # Checken ob alle Gegner getroffen wurden
+        all_enemies_hit = jnp.all(enemies_x <= 0) # somehow enemy_x wont be set to -1
+        is_level_up = (state.level == 1) & all_enemies_hit
+        new_enemies_x = jnp.where(is_level_up, ENEMY_POSITIONS_X_2, enemies_x)
+        new_enemies_y = jnp.where(is_level_up, ENEMY_POSITIONS_Y_2, enemies_y)
+        enemies_x = new_enemies_x
+        enemies_y = new_enemies_y
+        new_level = jnp.where(is_level_up, 2, state.level)
+        level = new_level
+
         def check_player_hit(projectile_xs, projectile_ys, player_x, player_y):
             def is_hit(px, py):
                 hit_x = (px + PROJECTILE_WIDTH > player_x) & (px < player_x + PLAYER_WIDTH)
@@ -374,8 +385,21 @@ class JaxPhoenix(JaxEnvironment[PhoenixState, PhoenixOberservation, PhoenixInfo]
             jnp.maximum(state.player_respawn_timer - 1, 0)
         )
         # Respawn remaining enemies
-        enemies_x = jnp.where(jnp.logical_and(player_hit_detected, (state.enemies_x > -1) & (state.enemies_y < HEIGHT+10)), ENEMY_POSITIONS_X,enemies_x )
-        enemies_y = jnp.where(jnp.logical_and(player_hit_detected, (state.enemies_x > -1) & (state.enemies_y < HEIGHT+10)), ENEMY_POSITIONS_Y, enemies_y)
+        enemy_respawn_x = jax.lax.cond(
+            state.level == 2,
+            lambda: ENEMY_POSITIONS_X_2,
+            lambda: ENEMY_POSITIONS_X
+        )
+        enemy_respawn_y = jax.lax.cond(
+            state.level == 2,
+            lambda: ENEMY_POSITIONS_Y_2,
+            lambda: ENEMY_POSITIONS_Y
+        )
+
+        enemy_respawn_mask = jnp.logical_and(player_hit_detected, (enemies_x > -1) & (enemies_y < HEIGHT + 10))
+
+        enemies_x = jnp.where(enemy_respawn_mask, enemy_respawn_x, enemies_x)
+        enemies_y = jnp.where(enemy_respawn_mask, enemy_respawn_y, enemies_y)
 
 
 
@@ -396,7 +420,8 @@ class JaxPhoenix(JaxEnvironment[PhoenixState, PhoenixOberservation, PhoenixInfo]
             enemy_projectile_x=enemy_projectile_x,
             enemy_projectile_y=enemy_projectile_y,
             lives=lives,
-            player_respawn_timer = player_respawn_timer
+            player_respawn_timer = player_respawn_timer,
+            level = level
         )
         observation = self._get_observation(return_state)
         env_reward = jnp.where(enemy_hit_detected, 1.0, 0.0)
@@ -431,12 +456,23 @@ class PhoenixRenderer(AtraJaxisRenderer):
 
         def render_enemy(raster, enemy_pos):
             x, y = enemy_pos
-            raster = jax.lax.cond(
-                x > -1,
-                lambda r: aj.render_at(r, x, y, frame_enemy_1),
-                lambda r: r,
-                raster
-            )
+
+            def render_level1(r):
+                return aj.render_at(r, x, y, frame_enemy_1)
+
+            def render_level2(r):
+                return aj.render_at(r, x, y, frame_enemy_2)
+
+            def render_if_active(r):
+                return jax.lax.cond(
+                    state.level == 2,
+                    render_level2,
+                    render_level1,
+                    r
+                )
+
+            raster = jax.lax.cond(x > -1, render_if_active, lambda r: r, raster)
+
             return raster, None
 
         enemy_positions = jnp.stack((state.enemies_x, state.enemies_y), axis=1)
