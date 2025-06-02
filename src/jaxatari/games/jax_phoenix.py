@@ -29,12 +29,38 @@ SCALING_FACTOR = 3
 PLAYER_POSITION = 76, 175
 PLAYER_COLOR = (213, 130, 74)
 PLAYER_BOUNDS = (0, 155) # (left, right)
-# Enemy Positions for level 1
+# Enemy Positions for level 1(phoenix)
 ENEMY_POSITIONS_X = jnp.array([123 - WIDTH//2, 123 -WIDTH//2, 136-WIDTH//2, 136-WIDTH//2, 160-WIDTH//2, 160-WIDTH//2, 174-WIDTH//2, 174-WIDTH//2])
 ENEMY_POSITIONS_Y = jnp.array([HEIGHT-135,HEIGHT- 153,HEIGHT- 117,HEIGHT- 171,HEIGHT- 117,HEIGHT- 171,HEIGHT- 135,HEIGHT- 153])
-# Enemy Positions for Level 2
-ENEMY_POSITIONS_Y_2 = jnp.array([HEIGHT-171, HEIGHT-171, HEIGHT-135, HEIGHT-135, HEIGHT-153, HEIGHT-153, HEIGHT-117, HEIGHT-117])
-ENEMY_POSITIONS_X_2 = jnp.array([141 - WIDTH//2, 155 - WIDTH//2, 127- WIDTH//2, 169 - WIDTH//2,134 - WIDTH//2, 162 - WIDTH//2, 120 - WIDTH//2, 176 - WIDTH//2])
+# Enemy Positions for Level 2 (phoenix
+#ENEMY_POSITIONS_Y_2 = jnp.array([HEIGHT-171, HEIGHT-171, HEIGHT-135, HEIGHT-135, HEIGHT-153, HEIGHT-153, HEIGHT-117, HEIGHT-117])
+#ENEMY_POSITIONS_X_2 = jnp.array([141 - WIDTH//2, 155 - WIDTH//2, 127- WIDTH//2, 169 - WIDTH//2,134 - WIDTH//2, 162 - WIDTH//2, 120 - WIDTH//2, 176 - WIDTH//2])
+# Enemy Positions for Level 3 (bats)
+#ENEMY_POSITIONS_X_3 = jnp.array([123 - WIDTH//2, 123 -WIDTH//2, 136-WIDTH//2, 136-WIDTH//2, 160-WIDTH//2, 160-WIDTH//2, 174-WIDTH//2, 174-WIDTH//2])
+#ENEMY_POSITIONS_Y_3 = jnp.array([HEIGHT-135,HEIGHT- 153,HEIGHT- 117,HEIGHT- 171,HEIGHT- 117,HEIGHT- 171,HEIGHT- 135,HEIGHT- 153])
+# Enemy Positions for Level 4 (bats)
+#ENEMY_POSITIONS_Y_4 = jnp.array([HEIGHT-171, HEIGHT-171, HEIGHT-135, HEIGHT-135, HEIGHT-153, HEIGHT-153, HEIGHT-117, HEIGHT-117])
+#ENEMY_POSITIONS_X_4 = jnp.array([141 - WIDTH//2, 155 - WIDTH//2, 127- WIDTH//2, 169 - WIDTH//2,134 - WIDTH//2, 162 - WIDTH//2, 120 - WIDTH//2, 176 - WIDTH//2])
+# Enemy_Positions for Level 5 (Boss)
+#ENEMY_POSITIONS_X_5 = jnp.array([123 - WIDTH//2, 123 -WIDTH//2, 136-WIDTH//2, 136-WIDTH//2, 160-WIDTH//2, 160-WIDTH//2, 174-WIDTH//2, 174-WIDTH//2])
+#ENEMY_POSITIONS_Y_5 = jnp.array([HEIGHT-135,HEIGHT- 153,HEIGHT- 117,HEIGHT- 171,HEIGHT- 117,HEIGHT- 171,HEIGHT- 135,HEIGHT- 153])
+
+ENEMY_POSITIONS_X_LIST = [
+lambda:jnp.array([123 - WIDTH//2, 123 -WIDTH//2, 136-WIDTH//2, 136-WIDTH//2, 160-WIDTH//2, 160-WIDTH//2, 174-WIDTH//2, 174-WIDTH//2]).astype(jnp.int32),
+lambda:jnp.array([141 - WIDTH//2, 155 - WIDTH//2, 127- WIDTH//2, 169 - WIDTH//2,134 - WIDTH//2, 162 - WIDTH//2, 120 - WIDTH//2, 176 - WIDTH//2]).astype(jnp.int32),
+lambda:jnp.array([123 - WIDTH//2, 123 -WIDTH//2, 136-WIDTH//2, 136-WIDTH//2, 160-WIDTH//2, 160-WIDTH//2, 174-WIDTH//2, 174-WIDTH//2]).astype(jnp.int32),
+lambda:jnp.array([141 - WIDTH//2, 155 - WIDTH//2, 127- WIDTH//2, 169 - WIDTH//2,134 - WIDTH//2, 162 - WIDTH//2, 120 - WIDTH//2, 176 - WIDTH//2]).astype(jnp.int32),
+lambda:jnp.array([123 - WIDTH//2, 123 -WIDTH//2, 136-WIDTH//2, 136-WIDTH//2, 160-WIDTH//2, 160-WIDTH//2, 174-WIDTH//2, 174-WIDTH//2]).astype(jnp.int32),
+]
+ENEMY_POSITIONS_Y_LIST = [
+lambda:jnp.array([HEIGHT-135,HEIGHT- 153,HEIGHT- 117,HEIGHT- 171,HEIGHT- 117,HEIGHT- 171,HEIGHT- 135,HEIGHT- 153]).astype(jnp.int32),
+lambda:jnp.array([HEIGHT-171, HEIGHT-171, HEIGHT-135, HEIGHT-135, HEIGHT-153, HEIGHT-153, HEIGHT-117, HEIGHT-117]).astype(jnp.int32),
+lambda:jnp.array([HEIGHT-135,HEIGHT- 153,HEIGHT- 117,HEIGHT- 171,HEIGHT- 117,HEIGHT- 171,HEIGHT- 135,HEIGHT- 153]).astype(jnp.int32),
+lambda:jnp.array([HEIGHT-171, HEIGHT-171, HEIGHT-135, HEIGHT-135, HEIGHT-153, HEIGHT-153, HEIGHT-117, HEIGHT-117]).astype(jnp.int32),
+lambda:jnp.array([HEIGHT-135,HEIGHT- 153,HEIGHT- 117,HEIGHT- 171,HEIGHT- 117,HEIGHT- 171,HEIGHT- 135,HEIGHT- 153]).astype(jnp.int32),
+]
+
+
 MAX_PLAYER = 1
 MAX_PLAYER_PROJECTILE = 1
 MAX_PHOENIX = 8
@@ -279,6 +305,7 @@ class JaxPhoenix(JaxEnvironment[PhoenixState, PhoenixOberservation, PhoenixInfo]
             score = jnp.array(0), # Standardwert: Score=0
             lives=jnp.array(5), # Standardwert: 5 Leben
             player_respawn_timer=jnp.array(5),
+            level=jnp.array(1),
         )
 
         initial_obs = self._get_observation(return_state)
@@ -355,12 +382,20 @@ class JaxPhoenix(JaxEnvironment[PhoenixState, PhoenixOberservation, PhoenixInfo]
 
         # Checken ob alle Gegner getroffen wurden
         all_enemies_hit = jnp.all(enemies_x <= 0) # somehow enemy_x wont be set to -1
-        is_level_up = (state.level == 1) & all_enemies_hit
-        new_enemies_x = jnp.where(is_level_up, ENEMY_POSITIONS_X_2, enemies_x)
-        new_enemies_y = jnp.where(is_level_up, ENEMY_POSITIONS_Y_2, enemies_y)
+        new_level = jnp.where(all_enemies_hit, (state.level % 5) + 1, state.level)
+        new_enemies_x = jax.lax.cond(
+            all_enemies_hit,
+            lambda: jax.lax.switch((state.level - 1) % 5, ENEMY_POSITIONS_X_LIST).astype(jnp.float32),
+            lambda: enemies_x
+        )
+        new_enemies_y = jax.lax.cond(
+            all_enemies_hit,
+            lambda: jax.lax.switch((state.level - 1) % 5, ENEMY_POSITIONS_Y_LIST).astype(jnp.int32),
+            lambda: enemies_y
+        )
+
         enemies_x = new_enemies_x
         enemies_y = new_enemies_y
-        new_level = jnp.where(is_level_up, 2, state.level)
         level = new_level
 
         def check_player_hit(projectile_xs, projectile_ys, player_x, player_y):
@@ -385,19 +420,10 @@ class JaxPhoenix(JaxEnvironment[PhoenixState, PhoenixOberservation, PhoenixInfo]
             jnp.maximum(state.player_respawn_timer - 1, 0)
         )
         # Respawn remaining enemies
-        enemy_respawn_x = jax.lax.cond(
-            state.level == 2,
-            lambda: ENEMY_POSITIONS_X_2,
-            lambda: ENEMY_POSITIONS_X
-        )
-        enemy_respawn_y = jax.lax.cond(
-            state.level == 2,
-            lambda: ENEMY_POSITIONS_Y_2,
-            lambda: ENEMY_POSITIONS_Y
-        )
+        enemy_respawn_x = jax.lax.switch((state.level - 2) % 5, ENEMY_POSITIONS_X_LIST).astype(jnp.float32)
+        enemy_respawn_y = jax.lax.switch((state.level - 2) % 5, ENEMY_POSITIONS_Y_LIST).astype(jnp.int32)
 
         enemy_respawn_mask = jnp.logical_and(player_hit_detected, (enemies_x > -1) & (enemies_y < HEIGHT + 10))
-
         enemies_x = jnp.where(enemy_respawn_mask, enemy_respawn_x, enemies_x)
         enemies_y = jnp.where(enemy_respawn_mask, enemy_respawn_y, enemies_y)
 
@@ -462,12 +488,23 @@ class PhoenixRenderer(AtraJaxisRenderer):
 
             def render_level2(r):
                 return aj.render_at(r, x, y, frame_enemy_2)
+            def render_level3(r):
+                return aj.render_at(r, x, y, frame_bat_high_wings)
+            def render_level4(r):
+                return aj.render_at(r, x, y, frame_bat_low_wings)
+            def render_level5(r):
+                return aj.render_at(r, x, y, frame_enemy_1)
 
             def render_if_active(r):
-                return jax.lax.cond(
-                    state.level == 2,
-                    render_level2,
-                    render_level1,
+                return jax.lax.switch(
+                    state.level - 1,
+                    [
+                        render_level1,
+                        render_level2,
+                        render_level3,
+                        render_level4,
+                        render_level5,
+                    ],
                     r
                 )
 
