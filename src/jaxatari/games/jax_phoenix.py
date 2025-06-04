@@ -119,8 +119,11 @@ def load_sprites(): # load Sprites
     player_projectile = aj.loadFrame(os.path.join(MODULE_DIR, "./sprites/phoenix/player_projectile.npy"))
     bat_high_wings_sprite = aj.loadFrame(os.path.join(MODULE_DIR, "./sprites/phoenix/bats/bats_high_wings.npy"))
     bat_low_wings_sprite = aj.loadFrame(os.path.join(MODULE_DIR, "./sprites/phoenix/bats/bats_low_wings.npy"))
+    bat_2_high_wings_sprite = aj.loadFrame(os.path.join(MODULE_DIR, "./sprites/phoenix/bats/bats_2_high_wings.npy"))
+    bat_2_low_wings_sprite = aj.loadFrame(os.path.join(MODULE_DIR, "./sprites/phoenix/bats/bats_2_low_wings.npy"))
     enemy1_sprite = aj.loadFrame(os.path.join(MODULE_DIR, "./sprites/phoenix/enemy_phoenix.npy"))
     enemy2_sprite = aj.loadFrame(os.path.join(MODULE_DIR, "./sprites/phoenix/enemy_phoenix_2.npy"))
+    boss_sprite = aj.loadFrame(os.path.join(MODULE_DIR, "./sprites/phoenix/boss.npy"))
     enemy_projectile = aj.loadFrame(os.path.join(MODULE_DIR, "./sprites/phoenix/enemy_projectile.npy"))
 
 
@@ -132,6 +135,9 @@ def load_sprites(): # load Sprites
     SPRITE_ENEMY2 = jnp.expand_dims(enemy2_sprite, axis=0)
     SPRITE_BAT_HIGH_WING = jnp.expand_dims(bat_high_wings_sprite, axis=0)
     SPRITE_BAT_LOW_WING = jnp.expand_dims(bat_low_wings_sprite, axis=0)
+    SPRITE_BAT_2_HIGH_WING = jnp.expand_dims(bat_2_high_wings_sprite, axis=0)
+    SPRITE_BAT_2_LOW_WING = jnp.expand_dims(bat_2_low_wings_sprite, axis=0)
+    SPRITE_BOSS = jnp.expand_dims(boss_sprite, axis=0)
     SPRITE_ENEMY_PROJECTILE = jnp.expand_dims(enemy_projectile, axis=0)
 
     DIGITS = aj.load_and_pad_digits(os.path.join(MODULE_DIR, "./sprites/phoenix/digits/{}.npy"))
@@ -150,12 +156,15 @@ def load_sprites(): # load Sprites
         SPRITE_ENEMY2,
         SPRITE_BAT_HIGH_WING,
         SPRITE_BAT_LOW_WING,
+        SPRITE_BAT_2_HIGH_WING,
+        SPRITE_BAT_2_LOW_WING,
+        SPRITE_BOSS,
         SPRITE_ENEMY_PROJECTILE,
         DIGITS,
         LIFE_INDICATOR,
     )
 # load sprites on module layer
-(SPRITE_PLAYER, SPRITE_BG, SPRITE_PLAYER_PROJECTILE, SPRITE_FLOOR, SPRITE_ENEMY1, SPRITE_ENEMY2, SPRITE_BAT_HIGH_WING, SPRITE_BAT_LOW_WING, SPRITE_ENEMY_PROJECTILE, DIGITS, LIFE_INDICATOR) = load_sprites()
+(SPRITE_PLAYER, SPRITE_BG, SPRITE_PLAYER_PROJECTILE, SPRITE_FLOOR, SPRITE_ENEMY1, SPRITE_ENEMY2, SPRITE_BAT_HIGH_WING, SPRITE_BAT_LOW_WING,SPRITE_BAT_2_HIGH_WING,SPRITE_BAT_2_LOW_WING,SPRITE_BOSS, SPRITE_ENEMY_PROJECTILE, DIGITS, LIFE_INDICATOR) = load_sprites()
 
 
 
@@ -368,6 +377,7 @@ class JaxPhoenix(JaxEnvironment[PhoenixState, PhoenixOberservation, PhoenixInfo]
             collision_y = (projectile_y + PROJECTILE_HEIGHT > enemy_y) & (projectile_y < enemy_y + ENEMY_HEIGHT)
             return collision_x & collision_y
 
+
         # Kollisionsprüfung Gegner
         enemy_collisions = jax.vmap(lambda enemy_pos: check_collision(enemy_pos, projectile_pos))(enemy_positions)
         enemy_hit_detected = jnp.any(enemy_collisions)
@@ -477,7 +487,10 @@ class PhoenixRenderer(AtraJaxisRenderer):
         frame_enemy_2 = aj.get_sprite_frame(SPRITE_ENEMY2, 0)
         frame_bat_high_wings = aj.get_sprite_frame(SPRITE_BAT_HIGH_WING, 0)
         frame_bat_low_wings = aj.get_sprite_frame(SPRITE_BAT_LOW_WING, 0)
+        frame_bat_2_high_wings = aj.get_sprite_frame(SPRITE_BAT_2_HIGH_WING, 0)
+        frame_bat_2_low_wings = aj.get_sprite_frame(SPRITE_BAT_2_LOW_WING, 0)
         frame_enemy_projectile = aj.get_sprite_frame(SPRITE_ENEMY_PROJECTILE, 0)
+        frame_boss = aj.get_sprite_frame(SPRITE_BOSS, 0)
 
 
         def render_enemy(raster, enemy_pos):
@@ -491,9 +504,9 @@ class PhoenixRenderer(AtraJaxisRenderer):
             def render_level3(r):
                 return aj.render_at(r, x, y, frame_bat_high_wings)
             def render_level4(r):
-                return aj.render_at(r, x, y, frame_bat_low_wings)
+                return aj.render_at(r, x, y, frame_bat_2_high_wings)
             def render_level5(r):
-                return aj.render_at(r, x, y, frame_enemy_1)
+                return aj.render_at(r, x, y, frame_boss)
 
             def render_if_active(r):
                 return jax.lax.switch(
@@ -511,7 +524,6 @@ class PhoenixRenderer(AtraJaxisRenderer):
             raster = jax.lax.cond(x > -1, render_if_active, lambda r: r, raster)
 
             return raster, None
-
         enemy_positions = jnp.stack((state.enemies_x, state.enemies_y), axis=1)
         raster, _ = jax.lax.scan(render_enemy, raster, enemy_positions)
 
