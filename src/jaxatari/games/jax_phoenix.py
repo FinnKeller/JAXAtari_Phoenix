@@ -36,15 +36,15 @@ ENEMY_POSITIONS_Y = jnp.array([HEIGHT-135,HEIGHT- 153,HEIGHT- 117,HEIGHT- 171,HE
 ENEMY_POSITIONS_X_LIST = [
 lambda:jnp.array([123 - WIDTH//2, 123 -WIDTH//2, 136-WIDTH//2, 136-WIDTH//2, 160-WIDTH//2, 160-WIDTH//2, 174-WIDTH//2, 174-WIDTH//2]).astype(jnp.int32),
 lambda:jnp.array([141 - WIDTH//2, 155 - WIDTH//2, 127- WIDTH//2, 169 - WIDTH//2,134 - WIDTH//2, 162 - WIDTH//2, 120 - WIDTH//2, 176 - WIDTH//2]).astype(jnp.int32),
-lambda:jnp.array([123 - WIDTH//2, 123 -WIDTH//2, 136-WIDTH//2, 136-WIDTH//2, 160-WIDTH//2, 160-WIDTH//2,174-WIDTH//2,-1 ]).astype(jnp.int32),
-lambda:jnp.array([141 - WIDTH//2, 155 - WIDTH//2, 127- WIDTH//2, 169 - WIDTH//2,134 - WIDTH//2, 162 - WIDTH//2, 120 - WIDTH//2,-1]).astype(jnp.int32),
+lambda:jnp.array([123 - WIDTH//2, 123 -WIDTH//2, 123-WIDTH//2, 123-WIDTH//2, 123-WIDTH//2, 123-WIDTH//2,123-WIDTH//2,-1 ]).astype(jnp.int32),
+lambda:jnp.array([123 - WIDTH//2, 123 - WIDTH//2, 123- WIDTH//2, 123 - WIDTH//2,123 - WIDTH//2, 123 - WIDTH//2, 123 - WIDTH//2,-1]).astype(jnp.int32),
 lambda:jnp.array([123 - WIDTH//2, -1, -1, -1, -1, -1 ,-1 ,-1]).astype(jnp.int32),
 ]
 ENEMY_POSITIONS_Y_LIST = [
 lambda:jnp.array([HEIGHT-135,HEIGHT- 153,HEIGHT- 117,HEIGHT- 171,HEIGHT- 117,HEIGHT- 171,HEIGHT- 135,HEIGHT- 153]).astype(jnp.int32),
 lambda:jnp.array([HEIGHT-171, HEIGHT-171, HEIGHT-135, HEIGHT-135, HEIGHT-153, HEIGHT-153, HEIGHT-117, HEIGHT-117]).astype(jnp.int32),
-lambda:jnp.array([HEIGHT-135,HEIGHT- 153,HEIGHT- 117,HEIGHT- 171,HEIGHT- 117,HEIGHT- 171,HEIGHT- 135, HEIGHT+20]).astype(jnp.int32),
-lambda:jnp.array([HEIGHT-171, HEIGHT-171, HEIGHT-135, HEIGHT-135, HEIGHT-153, HEIGHT-153, HEIGHT-117, HEIGHT+20]).astype(jnp.int32),
+lambda:jnp.array([HEIGHT-99,HEIGHT- 117,HEIGHT- 135,HEIGHT- 153,HEIGHT- 171,HEIGHT- 63,HEIGHT- 81, HEIGHT+20]).astype(jnp.int32),
+lambda:jnp.array([HEIGHT-63, HEIGHT-81, HEIGHT-99, HEIGHT-117, HEIGHT-135, HEIGHT-153, HEIGHT-171, HEIGHT+20]).astype(jnp.int32),
 lambda:jnp.array([HEIGHT-135, HEIGHT+20 ,  HEIGHT+20 ,  HEIGHT+20 ,  HEIGHT+20,  HEIGHT+20 , HEIGHT+20 , HEIGHT+20]).astype(jnp.int32),
 ]
 
@@ -66,9 +66,9 @@ class PhoenixState(NamedTuple):
     step_counter: chex.Array
     enemies_x: chex.Array # Gegner X-Positionen
     enemies_y: chex.Array
+    enemy_direction: chex.Array
     projectile_x: chex.Array = jnp.array(-1)  # Standardwert: kein Projektil
     projectile_y: chex.Array = jnp.array(-1)  # Standardwert: kein Projektil # Gegner Y-Positionen
-    enemy_direction: chex.Array = jnp.array(-1) # Bewegungsrichtung der Gegner
     enemy_projectile_x: chex.Array = jnp.full((MAX_PHOENIX,), -1) # Enemy projectile X-Positionen
     enemy_projectile_y: chex.Array = jnp.full((MAX_PHOENIX,), -1) # Enemy projectile Y-Positionen
 
@@ -206,7 +206,7 @@ ENEMY_WIDTH = 10
 ENEMY_HEIGHT = 10
 
 
-def enemy_step(state):
+def phoenix_step(state):
     enemy_step_size = 0.5
 
     active_enemies = (state.enemies_x > -1) & (state.enemies_y < HEIGHT+10)
@@ -234,6 +234,7 @@ def enemy_step(state):
 
     # Aktualisierten Zustand zurückgeben
     return new_enemies_x, new_direction
+
 
 
 class JaxPhoenix(JaxEnvironment[PhoenixState, PhoenixOberservation, PhoenixInfo]):
@@ -323,7 +324,7 @@ class JaxPhoenix(JaxEnvironment[PhoenixState, PhoenixOberservation, PhoenixInfo]
         enemies_y = state.enemies_y
 
         # Move enemies
-        enemies_x, enemy_direction = enemy_step(state)
+        enemies_x, enemy_direction = phoenix_step(state)
 
         ###Enemy shooting
         # use step_counter for randomness
