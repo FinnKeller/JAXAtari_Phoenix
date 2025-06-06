@@ -32,34 +32,21 @@ PLAYER_BOUNDS = (0, 155) # (left, right)
 # Enemy Positions for level 1(phoenix)
 ENEMY_POSITIONS_X = jnp.array([123 - WIDTH//2, 123 -WIDTH//2, 136-WIDTH//2, 136-WIDTH//2, 160-WIDTH//2, 160-WIDTH//2, 174-WIDTH//2, 174-WIDTH//2])
 ENEMY_POSITIONS_Y = jnp.array([HEIGHT-135,HEIGHT- 153,HEIGHT- 117,HEIGHT- 171,HEIGHT- 117,HEIGHT- 171,HEIGHT- 135,HEIGHT- 153])
-# Enemy Positions for Level 2 (phoenix
-#ENEMY_POSITIONS_Y_2 = jnp.array([HEIGHT-171, HEIGHT-171, HEIGHT-135, HEIGHT-135, HEIGHT-153, HEIGHT-153, HEIGHT-117, HEIGHT-117])
-#ENEMY_POSITIONS_X_2 = jnp.array([141 - WIDTH//2, 155 - WIDTH//2, 127- WIDTH//2, 169 - WIDTH//2,134 - WIDTH//2, 162 - WIDTH//2, 120 - WIDTH//2, 176 - WIDTH//2])
-# Enemy Positions for Level 3 (bats)
-#ENEMY_POSITIONS_X_3 = jnp.array([123 - WIDTH//2, 123 -WIDTH//2, 136-WIDTH//2, 136-WIDTH//2, 160-WIDTH//2, 160-WIDTH//2, 174-WIDTH//2, 174-WIDTH//2])
-#ENEMY_POSITIONS_Y_3 = jnp.array([HEIGHT-135,HEIGHT- 153,HEIGHT- 117,HEIGHT- 171,HEIGHT- 117,HEIGHT- 171,HEIGHT- 135,HEIGHT- 153])
-# Enemy Positions for Level 4 (bats)
-#ENEMY_POSITIONS_Y_4 = jnp.array([HEIGHT-171, HEIGHT-171, HEIGHT-135, HEIGHT-135, HEIGHT-153, HEIGHT-153, HEIGHT-117, HEIGHT-117])
-#ENEMY_POSITIONS_X_4 = jnp.array([141 - WIDTH//2, 155 - WIDTH//2, 127- WIDTH//2, 169 - WIDTH//2,134 - WIDTH//2, 162 - WIDTH//2, 120 - WIDTH//2, 176 - WIDTH//2])
-# Enemy_Positions for Level 5 (Boss)
-#ENEMY_POSITIONS_X_5 = jnp.array([123 - WIDTH//2, 123 -WIDTH//2, 136-WIDTH//2, 136-WIDTH//2, 160-WIDTH//2, 160-WIDTH//2, 174-WIDTH//2, 174-WIDTH//2])
-#ENEMY_POSITIONS_Y_5 = jnp.array([HEIGHT-135,HEIGHT- 153,HEIGHT- 117,HEIGHT- 171,HEIGHT- 117,HEIGHT- 171,HEIGHT- 135,HEIGHT- 153])
 
 ENEMY_POSITIONS_X_LIST = [
 lambda:jnp.array([123 - WIDTH//2, 123 -WIDTH//2, 136-WIDTH//2, 136-WIDTH//2, 160-WIDTH//2, 160-WIDTH//2, 174-WIDTH//2, 174-WIDTH//2]).astype(jnp.int32),
 lambda:jnp.array([141 - WIDTH//2, 155 - WIDTH//2, 127- WIDTH//2, 169 - WIDTH//2,134 - WIDTH//2, 162 - WIDTH//2, 120 - WIDTH//2, 176 - WIDTH//2]).astype(jnp.int32),
-lambda:jnp.array([123 - WIDTH//2, 123 -WIDTH//2, 136-WIDTH//2, 136-WIDTH//2, 160-WIDTH//2, 160-WIDTH//2, 174-WIDTH//2, 174-WIDTH//2]).astype(jnp.int32),
-lambda:jnp.array([141 - WIDTH//2, 155 - WIDTH//2, 127- WIDTH//2, 169 - WIDTH//2,134 - WIDTH//2, 162 - WIDTH//2, 120 - WIDTH//2, 176 - WIDTH//2]).astype(jnp.int32),
-lambda:jnp.array([123 - WIDTH//2, 123 -WIDTH//2, 136-WIDTH//2, 136-WIDTH//2, 160-WIDTH//2, 160-WIDTH//2, 174-WIDTH//2, 174-WIDTH//2]).astype(jnp.int32),
+lambda:jnp.array([123 - WIDTH//2, 123 -WIDTH//2, 136-WIDTH//2, 136-WIDTH//2, 160-WIDTH//2, 160-WIDTH//2,174-WIDTH//2,-1 ]).astype(jnp.int32),
+lambda:jnp.array([141 - WIDTH//2, 155 - WIDTH//2, 127- WIDTH//2, 169 - WIDTH//2,134 - WIDTH//2, 162 - WIDTH//2, 120 - WIDTH//2,-1]).astype(jnp.int32),
+lambda:jnp.array([123 - WIDTH//2, -1, -1, -1, -1, -1 ,-1 ,-1]).astype(jnp.int32),
 ]
 ENEMY_POSITIONS_Y_LIST = [
 lambda:jnp.array([HEIGHT-135,HEIGHT- 153,HEIGHT- 117,HEIGHT- 171,HEIGHT- 117,HEIGHT- 171,HEIGHT- 135,HEIGHT- 153]).astype(jnp.int32),
 lambda:jnp.array([HEIGHT-171, HEIGHT-171, HEIGHT-135, HEIGHT-135, HEIGHT-153, HEIGHT-153, HEIGHT-117, HEIGHT-117]).astype(jnp.int32),
-lambda:jnp.array([HEIGHT-135,HEIGHT- 153,HEIGHT- 117,HEIGHT- 171,HEIGHT- 117,HEIGHT- 171,HEIGHT- 135,HEIGHT- 153]).astype(jnp.int32),
-lambda:jnp.array([HEIGHT-171, HEIGHT-171, HEIGHT-135, HEIGHT-135, HEIGHT-153, HEIGHT-153, HEIGHT-117, HEIGHT-117]).astype(jnp.int32),
-lambda:jnp.array([HEIGHT-135,HEIGHT- 153,HEIGHT- 117,HEIGHT- 171,HEIGHT- 117,HEIGHT- 171,HEIGHT- 135,HEIGHT- 153]).astype(jnp.int32),
+lambda:jnp.array([HEIGHT-135,HEIGHT- 153,HEIGHT- 117,HEIGHT- 171,HEIGHT- 117,HEIGHT- 171,HEIGHT- 135, HEIGHT+20]).astype(jnp.int32),
+lambda:jnp.array([HEIGHT-171, HEIGHT-171, HEIGHT-135, HEIGHT-135, HEIGHT-153, HEIGHT-153, HEIGHT-117, HEIGHT+20]).astype(jnp.int32),
+lambda:jnp.array([HEIGHT-135, HEIGHT+20 ,  HEIGHT+20 ,  HEIGHT+20 ,  HEIGHT+20,  HEIGHT+20 , HEIGHT+20 , HEIGHT+20]).astype(jnp.int32),
 ]
-
 
 MAX_PLAYER = 1
 MAX_PLAYER_PROJECTILE = 1
@@ -77,10 +64,10 @@ class PhoenixState(NamedTuple):
     player_x: chex.Array
     player_y: chex.Array
     step_counter: chex.Array
+    enemies_x: chex.Array # Gegner X-Positionen
+    enemies_y: chex.Array
     projectile_x: chex.Array = jnp.array(-1)  # Standardwert: kein Projektil
-    projectile_y: chex.Array = jnp.array(-1)  # Standardwert: kein Projektil
-    enemies_x: chex.Array = jnp.array([-1] * MAX_PHOENIX)  # Gegner X-Positionen
-    enemies_y: chex.Array = jnp.array([-1] * MAX_PHOENIX)  # Gegner Y-Positionen
+    projectile_y: chex.Array = jnp.array(-1)  # Standardwert: kein Projektil # Gegner Y-Positionen
     enemy_direction: chex.Array = jnp.array(-1) # Bewegungsrichtung der Gegner
     enemy_projectile_x: chex.Array = jnp.full((MAX_PHOENIX,), -1) # Enemy projectile X-Positionen
     enemy_projectile_y: chex.Array = jnp.full((MAX_PHOENIX,), -1) # Enemy projectile Y-Positionen
@@ -395,16 +382,18 @@ class JaxPhoenix(JaxEnvironment[PhoenixState, PhoenixOberservation, PhoenixInfo]
         new_level = jnp.where(all_enemies_hit, (state.level % 5) + 1, state.level)
         new_enemies_x = jax.lax.cond(
             all_enemies_hit,
-            lambda: jax.lax.switch((state.level - 1) % 5, ENEMY_POSITIONS_X_LIST).astype(jnp.float32),
+            lambda: jax.lax.switch((new_level -1 )% 5, ENEMY_POSITIONS_X_LIST).astype(jnp.float32),
             lambda: enemies_x
         )
         new_enemies_y = jax.lax.cond(
             all_enemies_hit,
-            lambda: jax.lax.switch((state.level - 1) % 5, ENEMY_POSITIONS_Y_LIST).astype(jnp.int32),
+            lambda: jax.lax.switch((new_level -1 )% 5, ENEMY_POSITIONS_Y_LIST).astype(jnp.int32),
             lambda: enemies_y
         )
-
         enemies_x = new_enemies_x
+        jax.debug.print("New enemies x: {}", new_enemies_x)
+        jax.debug.print("Score: {}", score)
+        jax.debug.print("level : {}", new_level)
         enemies_y = new_enemies_y
         level = new_level
 
@@ -430,10 +419,10 @@ class JaxPhoenix(JaxEnvironment[PhoenixState, PhoenixOberservation, PhoenixInfo]
             jnp.maximum(state.player_respawn_timer - 1, 0)
         )
         # Respawn remaining enemies
-        enemy_respawn_x = jax.lax.switch((state.level - 2) % 5, ENEMY_POSITIONS_X_LIST).astype(jnp.float32)
-        enemy_respawn_y = jax.lax.switch((state.level - 2) % 5, ENEMY_POSITIONS_Y_LIST).astype(jnp.int32)
+        enemy_respawn_x = jax.lax.switch((level -1) % 5, ENEMY_POSITIONS_X_LIST).astype(jnp.float32)
+        enemy_respawn_y = jax.lax.switch((level - 1) % 5, ENEMY_POSITIONS_Y_LIST).astype(jnp.int32)
 
-        enemy_respawn_mask = jnp.logical_and(player_hit_detected, (enemies_x > -1) & (enemies_y < HEIGHT + 10))
+        enemy_respawn_mask = jnp.logical_and(player_hit_detected, (enemies_x > 0) & (enemies_y < HEIGHT + 10))
         enemies_x = jnp.where(enemy_respawn_mask, enemy_respawn_x, enemies_x)
         enemies_y = jnp.where(enemy_respawn_mask, enemy_respawn_y, enemies_y)
 
