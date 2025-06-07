@@ -214,15 +214,15 @@ def phoenix_step(state):
     # Prüfen, ob ein Gegner die linke oder rechte Grenze erreicht hat
     at_left_boundary = jnp.any(jnp.logical_and(state.enemies_x <= PLAYER_BOUNDS[0], active_enemies))
     at_right_boundary = jnp.any(jnp.logical_and(state.enemies_x >= PLAYER_BOUNDS[1] - ENEMY_WIDTH/2, active_enemies))
-
+    enemy_direction = state.enemy_direction.astype(jnp.int32)  # Ensure enemy_direction is a float array
     # Richtung ändern, wenn eine Grenze erreicht wird
     new_direction = jax.lax.cond(
         at_left_boundary,
-        lambda: 1,  # Nach rechts bewegen
+        lambda: jnp.full_like(state.enemy_direction, 1.0, dtype=jnp.float32),
         lambda: jax.lax.cond(
             at_right_boundary,
-            lambda: -1,  # Nach links bewegen
-            lambda: state.enemy_direction,  # Richtung beibehalten
+            lambda: jnp.full_like(state.enemy_direction, -1.0, dtype=jnp.float32),
+            lambda: state.enemy_direction.astype(jnp.float32),
         ),
     )
 
@@ -233,7 +233,30 @@ def phoenix_step(state):
     new_enemies_x = jnp.clip(new_enemies_x, PLAYER_BOUNDS[0], PLAYER_BOUNDS[1])
 
     # Aktualisierten Zustand zurückgeben
-    return new_enemies_x, new_direction
+    return new_enemies_x.astype(jnp.float32), jnp.broadcast_to(new_direction.astype(jnp.float32),(8,))
+
+def bat_step(state):
+    bat_step_size = 2
+    active_bats = (state.enemies_x > -1) & (state.enemies_y < HEIGHT + 10)
+
+    # Initialisiere neue Richtungen für jede Fledermaus
+    new_directions = jnp.where(
+        jnp.logical_and(state.enemies_x <= PLAYER_BOUNDS[0]+3, active_bats),
+        jnp.ones(state.enemy_direction.shape, dtype=jnp.float32),  # Force array shape
+        jnp.where(
+            jnp.logical_and(state.enemies_x >= PLAYER_BOUNDS[1] - ENEMY_WIDTH / 2, active_bats),
+            jnp.ones(state.enemy_direction.shape, dtype=jnp.float32) * -1,  # Force array shape
+            state.enemy_direction.astype(jnp.float32)  # Ensure consistency
+        )
+    )
+
+    # Bewege Fledermäuse basierend auf ihrer individuellen Richtung
+    new_enemies_x = jnp.where(active_bats, state.enemies_x + (new_directions * bat_step_size), state.enemies_x)
+
+    # Begrenze die Positionen innerhalb des Spielfelds
+    new_enemies_x = jnp.clip(new_enemies_x, PLAYER_BOUNDS[0], PLAYER_BOUNDS[1])
+
+    return new_enemies_x.astype(jnp.float32), new_directions.astype(jnp.float32)
 
 
 
@@ -324,7 +347,19 @@ class JaxPhoenix(JaxEnvironment[PhoenixState, PhoenixOberservation, PhoenixInfo]
         enemies_y = state.enemies_y
 
         # Move enemies
-        enemies_x, enemy_direction = phoenix_step(state)
+        enemies_x, enemy_direction = jax.lax.cond(
+            jnp.logical_or((state.level%5) == 1, (state.level%5) == 2),
+            lambda: phoenix_step(state),
+            lambda: jax.lax.cond(
+                jnp.logical_or((state.level%5) == 3, (state.level%5) == 4),
+                lambda: bat_step(state),
+                lambda: (state.enemies_x.astype(jnp.float32), jnp.broadcast_to(state.enemy_direction.astype(jnp.float32),(8,)))  # No movement for level 5
+            )
+        )
+        jax.debug.print("+Phoenix_shapes: {}", phoenix_step(state)[0].shape)
+        jax.debug.print("+Bat_enemies_shapes: {}", bat_step(state)[0].shape)
+        jax.debug.print("+Phoenix_direction_shape: {}", phoenix_step(state)[1].shape)
+        jax.debug.print("+Bat_direction_shape: {}", bat_step(state)[1].shape)
 
         ###Enemy shooting
         # use step_counter for randomness
@@ -376,7 +411,7 @@ class JaxPhoenix(JaxEnvironment[PhoenixState, PhoenixOberservation, PhoenixInfo]
         enemies_y = jnp.where(enemy_collisions, HEIGHT+20, enemies_y)
         projectile_x = jnp.where(enemy_hit_detected, -1, projectile_x)
         projectile_y = jnp.where(enemy_hit_detected, -1, projectile_y)
-        score = jnp.where(enemy_hit_detected, state.score + 100, state.score)
+        score = jnp.where(enemy_hit_detected, state.score + 20, state.score)
 
         # Checken ob alle Gegner getroffen wurden
         all_enemies_hit = jnp.all(enemies_x <= 0) # somehow enemy_x wont be set to -1
@@ -384,7 +419,7 @@ class JaxPhoenix(JaxEnvironment[PhoenixState, PhoenixOberservation, PhoenixInfo]
         new_enemies_x = jax.lax.cond(
             all_enemies_hit,
             lambda: jax.lax.switch((new_level -1 )% 5, ENEMY_POSITIONS_X_LIST).astype(jnp.float32),
-            lambda: enemies_x
+            lambda: enemies_x.astype(jnp.float32)
         )
         new_enemies_y = jax.lax.cond(
             all_enemies_hit,
