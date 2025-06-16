@@ -9,6 +9,8 @@ import chex
 import pygame
 from gymnasium.envs.tabular.blackjack import score
 from jax import Array
+from scipy.stats import false_discovery_control
+
 import jaxatari.rendering.atraJaxis as aj
 import numpy as np
 from enum import Enum
@@ -208,6 +210,7 @@ def phoenix_step(state):
     enemy_step_size = 0.75
 
     active_enemies = (state.enemies_x > -1) & (state.enemies_y < HEIGHT+10)
+    vertical_direction = 1
 
     # Prüfen, ob ein Gegner die linke oder rechte Grenze erreicht hat
     at_left_boundary = jnp.any(jnp.logical_and(state.enemies_x <= PLAYER_BOUNDS[0], active_enemies))
@@ -222,7 +225,23 @@ def phoenix_step(state):
             lambda: state.enemy_direction.astype(jnp.float32),
         ),
     )
+    enemy_indices = jnp.argsort(state.enemies_y)
+    attacker_indices = enemy_indices[-2:]
 
+    # Step 2: Check which of the 2 passed the boundary
+    attacker_y = state.enemies_y[attacker_indices]
+    is_below_boundary = attacker_y < HEIGHT - 51
+    is_above_boundary = attacker_y >= HEIGHT - 117
+
+    # Step 3: Filter attackers to only those still above boundary
+    valid_attack_mask = jnp.zeros_like(state.enemies_y, dtype=bool)
+    valid_attack_mask = valid_attack_mask.at[attacker_indices].set(is_below_boundary)
+
+    # Step 4: Move valid attackers down
+    new_enemies_y = jnp.where(valid_attack_mask, state.enemies_y + 1.5, state.enemies_y)
+    is_at_boudary = jnp.any(state.enemies_y == 159)
+
+    # Die ersten 4 Gegner fliegen
     # Gegner basierend auf der Richtung bewegen, nur aktive Gegner
     new_enemies_x = jnp.where(active_enemies, state.enemies_x + (new_direction * enemy_step_size), state.enemies_x)
 
@@ -230,7 +249,7 @@ def phoenix_step(state):
     new_enemies_x = jnp.clip(new_enemies_x, PLAYER_BOUNDS[0], PLAYER_BOUNDS[1])
 
     # Aktualisierten Zustand zurückgeben
-    return new_enemies_x.astype(jnp.float32), jnp.broadcast_to(new_direction.astype(jnp.float32),(8,))
+    return new_enemies_x.astype(jnp.float32), new_enemies_y,jnp.broadcast_to(new_direction.astype(jnp.float32),(8,))
 
 def bat_step(state):
     bat_step_size = 2
@@ -253,7 +272,7 @@ def bat_step(state):
     # Begrenze die Positionen innerhalb des Spielfelds
     new_enemies_x = jnp.clip(new_enemies_x, PLAYER_BOUNDS[0], PLAYER_BOUNDS[1])
 
-    return new_enemies_x.astype(jnp.float32), new_directions.astype(jnp.float32)
+    return new_enemies_x.astype(jnp.float32), state.enemies_y.astype(jnp.float32),new_directions.astype(jnp.float32)
 
 
 
@@ -344,13 +363,13 @@ class JaxPhoenix(JaxEnvironment[PhoenixState, PhoenixOberservation, PhoenixInfo]
         enemies_y = state.enemies_y
 
         # Move enemies
-        enemies_x, enemy_direction = jax.lax.cond(
+        enemies_x, enemies_y,enemy_direction = jax.lax.cond(
             jnp.logical_or((state.level%5) == 1, (state.level%5) == 2),
             lambda: phoenix_step(state),
             lambda: jax.lax.cond(
                 jnp.logical_or((state.level%5) == 3, (state.level%5) == 4),
                 lambda: bat_step(state),
-                lambda: (state.enemies_x.astype(jnp.float32), jnp.broadcast_to(state.enemy_direction.astype(jnp.float32),(8,)))  # No movement for level 5
+                lambda: (state.enemies_x.astype(jnp.float32), state.enemies_y.astype(jnp.float32),jnp.broadcast_to(state.enemy_direction.astype(jnp.float32),(8,)))  # No movement for level 5
             )
         )
 
@@ -407,7 +426,7 @@ class JaxPhoenix(JaxEnvironment[PhoenixState, PhoenixOberservation, PhoenixInfo]
         score = jnp.where(enemy_hit_detected, state.score + 20, state.score)
 
         # Checken ob alle Gegner getroffen wurden
-        all_enemies_hit = jnp.all(enemies_x <= 0)
+        all_enemies_hit = jnp.logical_and(jnp.all(enemies_x <= 0),jnp.all(enemies_y >= HEIGHT + 10))
         new_level = jnp.where(all_enemies_hit, (state.level % 5) + 1, state.level)
         new_enemies_x = jax.lax.cond(
             all_enemies_hit,
@@ -416,8 +435,8 @@ class JaxPhoenix(JaxEnvironment[PhoenixState, PhoenixOberservation, PhoenixInfo]
         )
         new_enemies_y = jax.lax.cond(
             all_enemies_hit,
-            lambda: jax.lax.switch((new_level -1 )% 5, ENEMY_POSITIONS_Y_LIST).astype(jnp.int32),
-            lambda: enemies_y
+            lambda: jax.lax.switch((new_level -1 )% 5, ENEMY_POSITIONS_Y_LIST).astype(jnp.float32),
+            lambda: enemies_y.astype(jnp.float32)
         )
         enemies_x = new_enemies_x
         enemies_y = new_enemies_y
