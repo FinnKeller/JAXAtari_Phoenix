@@ -33,12 +33,13 @@ PLAYER_BOUNDS = (0, 155) # (left, right)
 ENEMY_POSITIONS_X = jnp.array([123 - WIDTH//2, 123 -WIDTH//2, 136-WIDTH//2, 136-WIDTH//2, 160-WIDTH//2, 160-WIDTH//2, 174-WIDTH//2, 174-WIDTH//2])
 ENEMY_POSITIONS_Y = jnp.array([HEIGHT-135,HEIGHT- 153,HEIGHT- 117,HEIGHT- 171,HEIGHT- 117,HEIGHT- 171,HEIGHT- 135,HEIGHT- 153])
 
+# Enemy Positions for each level
 ENEMY_POSITIONS_X_LIST = [
 lambda:jnp.array([123 - WIDTH//2, 123 -WIDTH//2, 136-WIDTH//2, 136-WIDTH//2, 160-WIDTH//2, 160-WIDTH//2, 174-WIDTH//2, 174-WIDTH//2]).astype(jnp.int32),
 lambda:jnp.array([141 - WIDTH//2, 155 - WIDTH//2, 127- WIDTH//2, 169 - WIDTH//2,134 - WIDTH//2, 162 - WIDTH//2, 120 - WIDTH//2, 176 - WIDTH//2]).astype(jnp.int32),
-lambda:jnp.array([123 - WIDTH//2, 123 -WIDTH//2, 123-WIDTH//2, 123-WIDTH//2, 123-WIDTH//2, 123-WIDTH//2,123-WIDTH//2,-1 ]).astype(jnp.int32),
-lambda:jnp.array([123 - WIDTH//2, 123 - WIDTH//2, 123- WIDTH//2, 123 - WIDTH//2,123 - WIDTH//2, 123 - WIDTH//2, 123 - WIDTH//2,-1]).astype(jnp.int32),
-lambda:jnp.array([123 - WIDTH//2, -1, -1, -1, -1, -1 ,-1 ,-1]).astype(jnp.int32),
+lambda:jnp.array([123 - WIDTH//2, 170 -WIDTH//2, 123-WIDTH//2, 180-WIDTH//2, 123-WIDTH//2, 170-WIDTH//2,123-WIDTH//2,-1 ]).astype(jnp.int32),
+lambda:jnp.array([123 - WIDTH//2, 180 - WIDTH//2, 123- WIDTH//2, 170 - WIDTH//2,123 - WIDTH//2, 180 - WIDTH//2, 123 - WIDTH//2,-1]).astype(jnp.int32),
+lambda:jnp.array([150 - WIDTH//2, -1, -1, -1, -1, -1 ,-1 ,-1]).astype(jnp.int32),
 ]
 ENEMY_POSITIONS_Y_LIST = [
 lambda:jnp.array([HEIGHT-135,HEIGHT- 153,HEIGHT- 117,HEIGHT- 171,HEIGHT- 117,HEIGHT- 171,HEIGHT- 135,HEIGHT- 153]).astype(jnp.int32),
@@ -130,10 +131,6 @@ def load_sprites(): # load Sprites
     DIGITS = aj.load_and_pad_digits(os.path.join(MODULE_DIR, "./sprites/phoenix/digits/{}.npy"))
     LIFE_INDICATOR = aj.loadFrame(os.path.join(MODULE_DIR, "./sprites/phoenix/life_indicator.npy"))
 
-
-
-    print("Player sprite shape:", SPRITE_PLAYER.shape)
-    # shape (5, 10,4)
     return (
         SPRITE_PLAYER,
         BG_SPRITE,
@@ -162,8 +159,7 @@ def player_step(
     state: PhoenixState, action: chex.Array) -> tuple[chex.Array]:
 
     step_size = 2 # Größerer Wert = schnellerer Schritt
-
-    """Step function for the player."""
+    # left action
     left = jnp.any(
         jnp.array(
             [
@@ -176,6 +172,7 @@ def player_step(
             ]
         )
     )
+    # right action
     right = jnp.any(
         jnp.array(
             [
@@ -188,10 +185,11 @@ def player_step(
             ]
         )
     )
+    #movement right
     player_x = jnp.where(
         right, state.player_x + step_size, jnp.where(left, state.player_x - step_size, state.player_x)
     )
-
+    # movement left
     player_x = jnp.where(
         player_x < PLAYER_BOUNDS[0], PLAYER_BOUNDS[0], jnp.where(player_x > PLAYER_BOUNDS[1], PLAYER_BOUNDS[1], player_x)
     )
@@ -207,14 +205,13 @@ ENEMY_HEIGHT = 10
 
 
 def phoenix_step(state):
-    enemy_step_size = 0.5
+    enemy_step_size = 0.75
 
     active_enemies = (state.enemies_x > -1) & (state.enemies_y < HEIGHT+10)
 
     # Prüfen, ob ein Gegner die linke oder rechte Grenze erreicht hat
     at_left_boundary = jnp.any(jnp.logical_and(state.enemies_x <= PLAYER_BOUNDS[0], active_enemies))
     at_right_boundary = jnp.any(jnp.logical_and(state.enemies_x >= PLAYER_BOUNDS[1] - ENEMY_WIDTH/2, active_enemies))
-    enemy_direction = state.enemy_direction.astype(jnp.int32)  # Ensure enemy_direction is a float array
     # Richtung ändern, wenn eine Grenze erreicht wird
     new_direction = jax.lax.cond(
         at_left_boundary,
@@ -356,10 +353,6 @@ class JaxPhoenix(JaxEnvironment[PhoenixState, PhoenixOberservation, PhoenixInfo]
                 lambda: (state.enemies_x.astype(jnp.float32), jnp.broadcast_to(state.enemy_direction.astype(jnp.float32),(8,)))  # No movement for level 5
             )
         )
-        jax.debug.print("+Phoenix_shapes: {}", phoenix_step(state)[0].shape)
-        jax.debug.print("+Bat_enemies_shapes: {}", bat_step(state)[0].shape)
-        jax.debug.print("+Phoenix_direction_shape: {}", phoenix_step(state)[1].shape)
-        jax.debug.print("+Bat_direction_shape: {}", bat_step(state)[1].shape)
 
         ###Enemy shooting
         # use step_counter for randomness
@@ -367,7 +360,7 @@ class JaxPhoenix(JaxEnvironment[PhoenixState, PhoenixOberservation, PhoenixInfo]
             key = jax.random.PRNGKey(step_counter)
             return key, fire_chance
 
-        key, fire_chance = generate_fire_key_and_chance(state.step_counter, 0.005)  # 2% chance per enemy per frame
+        key, fire_chance = generate_fire_key_and_chance(state.step_counter, 0.0075)  # 2% chance per enemy per frame
 
         # Random decision: should each enemy fire?
         enemy_should_fire = jax.random.uniform(key, (MAX_PHOENIX,)) < fire_chance
@@ -414,7 +407,7 @@ class JaxPhoenix(JaxEnvironment[PhoenixState, PhoenixOberservation, PhoenixInfo]
         score = jnp.where(enemy_hit_detected, state.score + 20, state.score)
 
         # Checken ob alle Gegner getroffen wurden
-        all_enemies_hit = jnp.all(enemies_x <= 0) # somehow enemy_x wont be set to -1
+        all_enemies_hit = jnp.all(enemies_x <= 0)
         new_level = jnp.where(all_enemies_hit, (state.level % 5) + 1, state.level)
         new_enemies_x = jax.lax.cond(
             all_enemies_hit,
@@ -427,9 +420,6 @@ class JaxPhoenix(JaxEnvironment[PhoenixState, PhoenixOberservation, PhoenixInfo]
             lambda: enemies_y
         )
         enemies_x = new_enemies_x
-        jax.debug.print("New enemies x: {}", new_enemies_x)
-        jax.debug.print("Score: {}", score)
-        jax.debug.print("level : {}", new_level)
         enemies_y = new_enemies_y
         level = new_level
 
