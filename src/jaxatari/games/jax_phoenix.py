@@ -63,28 +63,34 @@ MAX_BOSS_BLOCK_BLUE = 24
 MAX_BOSS_BLOCK_RED = 104
 SCORE_COLOR = (210, 210, 64)
 
+NUM_BLUE_BLOCKS = MAX_BOSS_BLOCK_BLUE
+BLOCK_SPACING = 4  # horizontal spacing shrink per red layer
+PLAYER_MARGIN = 32
+RED_LAYERS = 7
 
 
-BLUE_BLOCK_X = jnp.linspace(PLAYER_BOUNDS[0]+32, PLAYER_BOUNDS[1]-32, MAX_BOSS_BLOCK_BLUE).astype(jnp.int32)
 
-# Array mit den Positionen der Blöcke erstellen
+BLUE_BLOCK_X = jnp.linspace(PLAYER_BOUNDS[0] + PLAYER_MARGIN, PLAYER_BOUNDS[1] - PLAYER_MARGIN, NUM_BLUE_BLOCKS).astype(jnp.int32)
+
+BLUE_BLOCK_Y_1 = jnp.full((NUM_BLUE_BLOCKS,), HEIGHT - 115, dtype=jnp.int32)
+BLUE_BLOCK_Y_2 = jnp.full((NUM_BLUE_BLOCKS,), HEIGHT - 117, dtype=jnp.int32)
 
 BLUE_BLOCK_POSITIONS = jnp.concatenate([
-    jnp.stack((BLUE_BLOCK_X, jnp.full((MAX_BOSS_BLOCK_BLUE,), HEIGHT - 115, dtype=jnp.int32)), axis=1),
-    jnp.stack((BLUE_BLOCK_X, jnp.full((MAX_BOSS_BLOCK_BLUE,), HEIGHT - 117, dtype=jnp.int32)), axis=1),
+    jnp.stack((BLUE_BLOCK_X, BLUE_BLOCK_Y_1), axis=1),
+    jnp.stack((BLUE_BLOCK_X, BLUE_BLOCK_Y_2), axis=1),
 ])
 
 # 1 Line with Blocks the same amount as Blue Blocks
 RED_BLOCK_X_1 = jnp.linspace(PLAYER_BOUNDS[0]+32, PLAYER_BOUNDS[1]-32, MAX_BOSS_BLOCK_BLUE).astype(jnp.int32)
 RED_BLOCK_X_2 = jnp.linspace(PLAYER_BOUNDS[0]+36, PLAYER_BOUNDS[1]-36, MAX_BOSS_BLOCK_BLUE-2).astype(jnp.int32)
 RED_BLOCK_X_3 = jnp.linspace(PLAYER_BOUNDS[0]+40, PLAYER_BOUNDS[1]-40, MAX_BOSS_BLOCK_BLUE-4).astype(jnp.int32)
-RED_BLOCK_X_4 = jnp.linspace(PLAYER_BOUNDS[0]+48, PLAYER_BOUNDS[1]-48, MAX_BOSS_BLOCK_BLUE-6).astype(jnp.int32)
-RED_BLOCK_X_5 = jnp.linspace(PLAYER_BOUNDS[0]+56, PLAYER_BOUNDS[1]-56, MAX_BOSS_BLOCK_BLUE-8).astype(jnp.int32)
-RED_BLOCK_X_6 = jnp.linspace(PLAYER_BOUNDS[0]+62, PLAYER_BOUNDS[1]-62, MAX_BOSS_BLOCK_BLUE-10).astype(jnp.int32)
-RED_BLOCK_X_7 = jnp.linspace(PLAYER_BOUNDS[0]+70, PLAYER_BOUNDS[1]-70, MAX_BOSS_BLOCK_BLUE-12).astype(jnp.int32)
+RED_BLOCK_X_4 = jnp.linspace(PLAYER_BOUNDS[0]+44, PLAYER_BOUNDS[1]-44, MAX_BOSS_BLOCK_BLUE-6).astype(jnp.int32)
+RED_BLOCK_X_5 = jnp.linspace(PLAYER_BOUNDS[0]+48, PLAYER_BOUNDS[1]-48, MAX_BOSS_BLOCK_BLUE-8).astype(jnp.int32)
+RED_BLOCK_X_6 = jnp.linspace(PLAYER_BOUNDS[0]+52, PLAYER_BOUNDS[1]-52, MAX_BOSS_BLOCK_BLUE-10).astype(jnp.int32)
+RED_BLOCK_X_7 = jnp.linspace(PLAYER_BOUNDS[0]+56, PLAYER_BOUNDS[1]-56, MAX_BOSS_BLOCK_BLUE-12).astype(jnp.int32)
 RED_BLOCK_POSITIONS = jnp.concatenate(
     [
-        jnp.stack((RED_BLOCK_X_1, jnp.full((MAX_BOSS_BLOCK_BLUE,), HEIGHT-111, dtype=jnp.int32)), axis=1),
+      jnp.stack((RED_BLOCK_X_1, jnp.full((MAX_BOSS_BLOCK_BLUE,), HEIGHT-111, dtype=jnp.int32)), axis=1),
         jnp.stack((RED_BLOCK_X_2, jnp.full((MAX_BOSS_BLOCK_BLUE-2,), HEIGHT-108, dtype=jnp.int32)), axis=1),
         jnp.stack((RED_BLOCK_X_3, jnp.full((MAX_BOSS_BLOCK_BLUE-4,), HEIGHT-105, dtype=jnp.int32)), axis=1),
         jnp.stack((RED_BLOCK_X_4, jnp.full((MAX_BOSS_BLOCK_BLUE-6,), HEIGHT-102, dtype=jnp.int32)), axis=1),
@@ -95,36 +101,36 @@ RED_BLOCK_POSITIONS = jnp.concatenate(
     axis=0
 )
 
-GREEN_BLOCK_Y_1 = jnp.linspace(HEIGHT-120, HEIGHT-134, 7).astype(jnp.int32)
-GREEN_BLOCK_X_1 = jnp.full((7,), WIDTH//2 + 6, dtype=jnp.int32)
+GREEN_BLOCK_Y_1 = jnp.linspace(HEIGHT-120, HEIGHT-128, 5).astype(jnp.int32)
+GREEN_BLOCK_X_1 = jnp.full((5,), WIDTH//2 + 8, dtype=jnp.int32)
 
-GREEN_BLOCK_X_2 = jnp.full((6,), WIDTH//2 + 10, dtype=jnp.int32)
-GREEN_BLOCK_Y_2 = jnp.linspace(HEIGHT-120, HEIGHT-130, 6).astype(jnp.int32)
+GREEN_BLOCK_X_2 = jnp.full((4,), WIDTH//2 + 12, dtype=jnp.int32)
+GREEN_BLOCK_Y_2 = jnp.linspace(HEIGHT-120, HEIGHT-126, 4).astype(jnp.int32)
 
-GREEN_BLOCK_X_3 = jnp.full((5,), WIDTH//2 + 14, dtype=jnp.int32)
-GREEN_BLOCK_Y_3 = jnp.linspace(HEIGHT-120, HEIGHT-126, 5).astype(jnp.int32)
+GREEN_BLOCK_X_3 = jnp.full((3,), WIDTH//2 + 16, dtype=jnp.int32)
+GREEN_BLOCK_Y_3 = jnp.linspace(HEIGHT-120, HEIGHT-124, 3).astype(jnp.int32)
 
-GREEN_BLOCK_X_4 = jnp.full((4,), WIDTH//2 + 18, dtype=jnp.int32)
-GREEN_BLOCK_Y_4 = jnp.linspace(HEIGHT-120, HEIGHT-122, 4).astype(jnp.int32)
+GREEN_BLOCK_X_4 = jnp.full((2,), WIDTH//2 + 20, dtype=jnp.int32)
+GREEN_BLOCK_Y_4 = jnp.linspace(HEIGHT-120, HEIGHT-122, 2).astype(jnp.int32)
 
-GREEN_BLOCK_X_5 = jnp.full((3,), WIDTH//2 + 22, dtype=jnp.int32)
-GREEN_BLOCK_Y_5 = jnp.linspace(HEIGHT-120, HEIGHT-120, 3).astype(jnp.int32)
+GREEN_BLOCK_X_5 = jnp.full((1,), WIDTH//2 + 24, dtype=jnp.int32)
+GREEN_BLOCK_Y_5 = jnp.linspace(HEIGHT-120, HEIGHT-120, 1).astype(jnp.int32)
 
 # mirror the blocks to the left side
-GREEN_BLOCK_Y_6 = jnp.linspace(HEIGHT-120, HEIGHT-134, 7).astype(jnp.int32)
-GREEN_BLOCK_X_6 = jnp.full((7,), WIDTH//2 - 8, dtype=jnp.int32)
+GREEN_BLOCK_Y_6 = jnp.linspace(HEIGHT-120, HEIGHT-128, 5).astype(jnp.int32)
+GREEN_BLOCK_X_6 = jnp.full((5,), WIDTH//2 - 8, dtype=jnp.int32)
 
-GREEN_BLOCK_X_7 = jnp.full((6,), WIDTH//2 - 12, dtype=jnp.int32)
-GREEN_BLOCK_Y_7 = jnp.linspace(HEIGHT-120, HEIGHT-130, 6).astype(jnp.int32)
+GREEN_BLOCK_X_7 = jnp.full((4,), WIDTH//2 - 12, dtype=jnp.int32)
+GREEN_BLOCK_Y_7 = jnp.linspace(HEIGHT-120, HEIGHT-126, 4).astype(jnp.int32)
 
-GREEN_BLOCK_X_8 = jnp.full((5,), WIDTH//2 - 16, dtype=jnp.int32)
-GREEN_BLOCK_Y_8 = jnp.linspace(HEIGHT-120, HEIGHT-126, 5).astype(jnp.int32)
+GREEN_BLOCK_X_8 = jnp.full((3,), WIDTH//2 - 16, dtype=jnp.int32)
+GREEN_BLOCK_Y_8 = jnp.linspace(HEIGHT-120, HEIGHT-124, 3).astype(jnp.int32)
 
-GREEN_BLOCK_X_9 = jnp.full((4,), WIDTH//2 - 20, dtype=jnp.int32)
-GREEN_BLOCK_Y_9 = jnp.linspace(HEIGHT-120, HEIGHT-122, 4).astype(jnp.int32)
+GREEN_BLOCK_X_9 = jnp.full((2,), WIDTH//2 - 20, dtype=jnp.int32)
+GREEN_BLOCK_Y_9 = jnp.linspace(HEIGHT-120, HEIGHT-122, 2).astype(jnp.int32)
 
-GREEN_BLOCK_X_10 = jnp.full((3,), WIDTH//2 - 24, dtype=jnp.int32)
-GREEN_BLOCK_Y_10 = jnp.linspace(HEIGHT-120, HEIGHT-120, 3).astype(jnp.int32)
+GREEN_BLOCK_X_10 = jnp.full((1,), WIDTH//2 - 24, dtype=jnp.int32)
+GREEN_BLOCK_Y_10 = jnp.linspace(HEIGHT-120, HEIGHT-120, 1).astype(jnp.int32)
 
 GREEN_BLOCK_POSITIONS = jnp.concatenate(
     [
@@ -419,20 +425,44 @@ def boss_step(state):
         return collision_x & collision_y
 
     def process_collisions(_):
-        # green_blocks
-        green_block_collisions = jax.vmap(lambda entity_pos: check_collision(entity_pos, projectile_pos))(new_green_blocks)
-        new_green = jnp.where(green_block_collisions[:, None], -100, new_green_blocks)
-
-        # red_blocks
+        # Check collisions for each block group
+        green_block_collisions = jax.vmap(lambda entity_pos: check_collision(entity_pos, projectile_pos))(
+            new_green_blocks)
         red_block_collisions = jax.vmap(lambda entity_pos: check_collision(entity_pos, projectile_pos))(new_red_blocks)
-        new_red = jnp.where(red_block_collisions[:, None], -100, new_red_blocks)
+        blue_block_collisions = jax.vmap(lambda entity_pos: check_collision(entity_pos, projectile_pos))(
+            new_blue_blocks)
 
-        # blue_blocks
-        blue_block_collisions = jax.vmap(lambda entity_pos: check_collision(entity_pos, projectile_pos))(new_blue_blocks)
-        new_blue = jnp.where(blue_block_collisions[:, None], -100, new_blue_blocks)
+        def remove_first_hit(blocks, collisions):
+            hit_indices = jnp.where(collisions, size=1, fill_value=-1)[0]
+            first_hit_index = hit_indices[0]  # scalar
 
+            def remove_block(i, arr):
+                # Create a mask with True only at index i
+                mask = jnp.arange(arr.shape[0]) == i  # shape (50,)
+                # Broadcast mask to shape (50, 1) to align with arr shape (50, 2)
+                mask = mask[:, None]  # shape (50, 1)
+
+                # Create an array of -100 with the same shape as one block (2,)
+                replacement = jnp.full(arr.shape[1:], -100)  # shape (2,)
+
+                # Use jnp.where to replace the entire row at index i with -100 vector
+                return jnp.where(mask, replacement, arr)
+
+            return jax.lax.cond(
+                first_hit_index >= 0,
+                lambda: remove_block(first_hit_index, blocks),
+                lambda: blocks
+            ), first_hit_index
+
+        new_green,_ = remove_first_hit(new_green_blocks, green_block_collisions)
+        new_red,_ = remove_first_hit(new_red_blocks, red_block_collisions)
+        new_blue, first_hit_idx = remove_first_hit(new_blue_blocks, blue_block_collisions)
+
+        # Rotate the blue blocks to the right, when the first hit accured
+            #jax.debug.print("new_blue: {}", jnp.any(new_blue_blocks == -100)) # this works
+        jax.debug.print("new_blue: {}", new_blue)
         hit_any = jnp.any(green_block_collisions) | jnp.any(red_block_collisions) | jnp.any(blue_block_collisions)
-        return (new_green, new_red, new_blue, hit_any)
+        return new_green, new_red, new_blue, hit_any
 
     def skip_collisions(_):
         return (new_green_blocks, new_red_blocks, new_blue_blocks, False)
@@ -523,7 +553,7 @@ class JaxPhoenix(JaxEnvironment[PhoenixState, PhoenixOberservation, PhoenixInfo,
             score = jnp.array(0), # Standardwert: Score=0
             lives=jnp.array(5), # Standardwert: 5 Leben
             player_respawn_timer=jnp.array(5),
-            level=jnp.array(1),
+            level=jnp.array(5),
             phoenix_cooldown=jnp.array(30),
             vertical_direction=jnp.full((8,),1.0),
             blue_blocks=BLUE_BLOCK_POSITIONS.astype(jnp.float32),
@@ -561,7 +591,7 @@ class JaxPhoenix(JaxEnvironment[PhoenixState, PhoenixOberservation, PhoenixInfo,
         projectile_y = jnp.where(firing,
                                  state.player_y - 1,
                                  jnp.where(projectile_active,
-                                           state.projectile_y - 5,  # move up if active
+                                           state.projectile_y - 3,  # move up if active
                                            state.projectile_y))  # stay
         projectile_y = jnp.where(projectile_y < 0, -6, projectile_y)
         # use step_counter for randomness
