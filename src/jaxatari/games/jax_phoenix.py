@@ -59,13 +59,13 @@ MAX_PHOENIX = 8
 MAX_BATS = 7
 MAX_BOSS = 1
 MAX_BOSS_BLOCK_GREEN = 2
-MAX_BOSS_BLOCK_BLUE = 48
+MAX_BOSS_BLOCK_BLUE = 24
 MAX_BOSS_BLOCK_RED = 104
 SCORE_COLOR = (210, 210, 64)
 
 
 
-BLUE_BLOCK_X = jnp.linspace(PLAYER_BOUNDS[0]+30, PLAYER_BOUNDS[1]-30, MAX_BOSS_BLOCK_BLUE).astype(jnp.int32)
+BLUE_BLOCK_X = jnp.linspace(PLAYER_BOUNDS[0]+32, PLAYER_BOUNDS[1]-32, MAX_BOSS_BLOCK_BLUE).astype(jnp.int32)
 
 # Array mit den Positionen der Blöcke erstellen
 
@@ -75,22 +75,22 @@ BLUE_BLOCK_POSITIONS = jnp.concatenate([
 ])
 
 # 1 Line with Blocks the same amount as Blue Blocks
-RED_BLOCK_X_1 = jnp.linspace(PLAYER_BOUNDS[0]+30, PLAYER_BOUNDS[1]-30, MAX_BOSS_BLOCK_BLUE).astype(jnp.int32)
-RED_BLOCK_X_2 = jnp.linspace(PLAYER_BOUNDS[0]+35, PLAYER_BOUNDS[1]-35, MAX_BOSS_BLOCK_BLUE-4).astype(jnp.int32)
-RED_BLOCK_X_3 = jnp.linspace(PLAYER_BOUNDS[0]+40, PLAYER_BOUNDS[1]-40, MAX_BOSS_BLOCK_BLUE-8).astype(jnp.int32)
-RED_BLOCK_X_4 = jnp.linspace(PLAYER_BOUNDS[0]+45, PLAYER_BOUNDS[1]-45, MAX_BOSS_BLOCK_BLUE-16).astype(jnp.int32)
-RED_BLOCK_X_5 = jnp.linspace(PLAYER_BOUNDS[0]+50, PLAYER_BOUNDS[1]-50, MAX_BOSS_BLOCK_BLUE-24).astype(jnp.int32)
-RED_BLOCK_X_6 = jnp.linspace(PLAYER_BOUNDS[0]+60, PLAYER_BOUNDS[1]-60, MAX_BOSS_BLOCK_BLUE-30).astype(jnp.int32)
-RED_BLOCK_X_7 = jnp.linspace(PLAYER_BOUNDS[0]+70, PLAYER_BOUNDS[1]-70, MAX_BOSS_BLOCK_BLUE-36).astype(jnp.int32)
+RED_BLOCK_X_1 = jnp.linspace(PLAYER_BOUNDS[0]+32, PLAYER_BOUNDS[1]-32, MAX_BOSS_BLOCK_BLUE).astype(jnp.int32)
+RED_BLOCK_X_2 = jnp.linspace(PLAYER_BOUNDS[0]+36, PLAYER_BOUNDS[1]-36, MAX_BOSS_BLOCK_BLUE-2).astype(jnp.int32)
+RED_BLOCK_X_3 = jnp.linspace(PLAYER_BOUNDS[0]+40, PLAYER_BOUNDS[1]-40, MAX_BOSS_BLOCK_BLUE-4).astype(jnp.int32)
+RED_BLOCK_X_4 = jnp.linspace(PLAYER_BOUNDS[0]+48, PLAYER_BOUNDS[1]-48, MAX_BOSS_BLOCK_BLUE-6).astype(jnp.int32)
+RED_BLOCK_X_5 = jnp.linspace(PLAYER_BOUNDS[0]+56, PLAYER_BOUNDS[1]-56, MAX_BOSS_BLOCK_BLUE-8).astype(jnp.int32)
+RED_BLOCK_X_6 = jnp.linspace(PLAYER_BOUNDS[0]+62, PLAYER_BOUNDS[1]-62, MAX_BOSS_BLOCK_BLUE-10).astype(jnp.int32)
+RED_BLOCK_X_7 = jnp.linspace(PLAYER_BOUNDS[0]+70, PLAYER_BOUNDS[1]-70, MAX_BOSS_BLOCK_BLUE-12).astype(jnp.int32)
 RED_BLOCK_POSITIONS = jnp.concatenate(
     [
         jnp.stack((RED_BLOCK_X_1, jnp.full((MAX_BOSS_BLOCK_BLUE,), HEIGHT-111, dtype=jnp.int32)), axis=1),
-        jnp.stack((RED_BLOCK_X_2, jnp.full((MAX_BOSS_BLOCK_BLUE-4,), HEIGHT-108, dtype=jnp.int32)), axis=1),
-        jnp.stack((RED_BLOCK_X_3, jnp.full((MAX_BOSS_BLOCK_BLUE-8,), HEIGHT-105, dtype=jnp.int32)), axis=1),
-        jnp.stack((RED_BLOCK_X_4, jnp.full((MAX_BOSS_BLOCK_BLUE-16,), HEIGHT-102, dtype=jnp.int32)), axis=1),
-        jnp.stack((RED_BLOCK_X_5, jnp.full((MAX_BOSS_BLOCK_BLUE-24,), HEIGHT-99, dtype=jnp.int32)), axis=1),
-        jnp.stack((RED_BLOCK_X_6, jnp.full((MAX_BOSS_BLOCK_BLUE-30,), HEIGHT-96, dtype=jnp.int32)), axis=1),
-        jnp.stack((RED_BLOCK_X_7, jnp.full((MAX_BOSS_BLOCK_BLUE-36,), HEIGHT-93, dtype=jnp.int32)), axis=1)
+        jnp.stack((RED_BLOCK_X_2, jnp.full((MAX_BOSS_BLOCK_BLUE-2,), HEIGHT-108, dtype=jnp.int32)), axis=1),
+        jnp.stack((RED_BLOCK_X_3, jnp.full((MAX_BOSS_BLOCK_BLUE-4,), HEIGHT-105, dtype=jnp.int32)), axis=1),
+        jnp.stack((RED_BLOCK_X_4, jnp.full((MAX_BOSS_BLOCK_BLUE-6,), HEIGHT-102, dtype=jnp.int32)), axis=1),
+        jnp.stack((RED_BLOCK_X_5, jnp.full((MAX_BOSS_BLOCK_BLUE-8,), HEIGHT-99, dtype=jnp.int32)), axis=1),
+        jnp.stack((RED_BLOCK_X_6, jnp.full((MAX_BOSS_BLOCK_BLUE-10,), HEIGHT-96, dtype=jnp.int32)), axis=1),
+        jnp.stack((RED_BLOCK_X_7, jnp.full((MAX_BOSS_BLOCK_BLUE-12,), HEIGHT-93, dtype=jnp.int32)), axis=1)
     ],
     axis=0
 )
@@ -300,6 +300,8 @@ PROJECTILE_WIDTH = 2
 PROJECTILE_HEIGHT = 4
 ENEMY_WIDTH = 10
 ENEMY_HEIGHT = 10
+BLOCK_WIDTH = 4
+BLOCK_HEIGHT = 4
 
 
 def phoenix_step(state):
@@ -386,34 +388,71 @@ def bat_step(state):
 
 def boss_step(state):
 
-
-    # there are actually two blue lines (both moving when hitted
-    # if blue_blocks.any are hitted, they dissapear + the rest of the blue blocks with the same y rotate per step to the right
     step_size = 0.025
     step_count = state.step_counter
     skip_every = 2
 
     condition = (state.enemies_y[0] <= 100) & ((step_count % skip_every) != 0)
-    green_blocks = state.green_blocks
-    new_green_blocks = green_blocks.at[:, 1].set(
-        jnp.where(condition, green_blocks[:, 1] + step_size, green_blocks[:,1])
-    )
-    red_blocks = state.red_blocks
-    new_red_blocks = red_blocks.at[:, 1].set(
-        jnp.where(condition, red_blocks[:,1] + step_size, red_blocks[:,1])
-    )
-    blue_blocks = state.blue_blocks
-    new_blue_blocks = blue_blocks.at[:, 1].set(
-        jnp.where(condition, blue_blocks[:, 1] + step_size, blue_blocks[:, 1])
-    )
+
+    def move_blocks(blocks):
+        not_removed = blocks[:, 0] > -99  # Filter out removed blocks
+        move_mask = condition & not_removed
+        return blocks.at[:, 1].set(
+            jnp.where(move_mask, blocks[:, 1] + step_size, blocks[:, 1])
+        )
+
+    new_green_blocks = move_blocks(state.green_blocks)
+    new_red_blocks = move_blocks(state.red_blocks)
+    new_blue_blocks = move_blocks(state.blue_blocks)
 
     new_enemy_y = jnp.where(condition, state.enemies_y + step_size, state.enemies_y.astype(jnp.float32))
 
+    projectile_active = (state.projectile_x >= 0) & (state.projectile_y >= 0)
+    projectile_pos = jnp.array([state.projectile_x, state.projectile_y])
+
+    def check_collision(entity_pos, projectile_pos):
+        enemy_x, enemy_y = entity_pos
+        projectile_x, projectile_y = projectile_pos
+
+        collision_x = (projectile_x + PROJECTILE_WIDTH > enemy_x) & (projectile_x < enemy_x + BLOCK_WIDTH)
+        collision_y = (projectile_y + PROJECTILE_HEIGHT > enemy_y) & (projectile_y < enemy_y + BLOCK_HEIGHT)
+        return collision_x & collision_y
+
+    def process_collisions(_):
+        # green_blocks
+        green_block_collisions = jax.vmap(lambda entity_pos: check_collision(entity_pos, projectile_pos))(new_green_blocks)
+        new_green = jnp.where(green_block_collisions[:, None], -100, new_green_blocks)
+
+        # red_blocks
+        red_block_collisions = jax.vmap(lambda entity_pos: check_collision(entity_pos, projectile_pos))(new_red_blocks)
+        new_red = jnp.where(red_block_collisions[:, None], -100, new_red_blocks)
+
+        # blue_blocks
+        blue_block_collisions = jax.vmap(lambda entity_pos: check_collision(entity_pos, projectile_pos))(new_blue_blocks)
+        new_blue = jnp.where(blue_block_collisions[:, None], -100, new_blue_blocks)
+
+        hit_any = jnp.any(green_block_collisions) | jnp.any(red_block_collisions) | jnp.any(blue_block_collisions)
+        return (new_green, new_red, new_blue, hit_any)
+
+    def skip_collisions(_):
+        return (new_green_blocks, new_red_blocks, new_blue_blocks, False)
+
+    # Use lax.cond to select between processing or skipping collision
+    new_green_blocks, new_red_blocks, new_blue_blocks, projectile_hit_detected = jax.lax.cond(
+        projectile_active,
+        process_collisions,
+        skip_collisions,
+        operand=None
+    )
+    projectile_x = jnp.where(projectile_hit_detected, -1, state.projectile_x)
+    projectile_y = jnp.where(projectile_hit_detected, -1, state.projectile_y)
     state = state._replace(
         enemies_y = new_enemy_y.astype(jnp.float32),
         blue_blocks = new_blue_blocks,
         red_blocks = new_red_blocks,
         green_blocks = new_green_blocks,
+        projectile_x = projectile_x,
+        projectile_y = projectile_y,
     )
     return state
 
@@ -484,7 +523,7 @@ class JaxPhoenix(JaxEnvironment[PhoenixState, PhoenixOberservation, PhoenixInfo,
             score = jnp.array(0), # Standardwert: Score=0
             lives=jnp.array(5), # Standardwert: 5 Leben
             player_respawn_timer=jnp.array(5),
-            level=jnp.array(5),
+            level=jnp.array(1),
             phoenix_cooldown=jnp.array(30),
             vertical_direction=jnp.full((8,),1.0),
             blue_blocks=BLUE_BLOCK_POSITIONS.astype(jnp.float32),
@@ -500,26 +539,12 @@ class JaxPhoenix(JaxEnvironment[PhoenixState, PhoenixOberservation, PhoenixInfo,
         player_x = player_step(state, action)
         #jax.debug.print("blue_block_dim:{}", SPRITE_BLUE_BLOCK.ndim)
 
-        can_fire = state.projectile_y < 0
-        projectile_x = jnp.where((action == Action.FIRE) & can_fire, state.player_x + 2, state.projectile_x)
-        projectile_y = jnp.where((action == Action.FIRE) & can_fire, state.player_y - 1, state.projectile_y - 5) # durch das -3 wird das Projektil schneller (Projektil geschwindigkeit)
+        projectile_active = state.projectile_y >= 0
 
-        # Projektil entfernen, wenn es obere Grenze erreicht:
-        projectile_y = jnp.where(projectile_y < 0, -6, projectile_y)
+        # Can fire only if inactive
+        can_fire = ~projectile_active
+        firing = (action == Action.FIRE) & can_fire
 
-
-
-
-        # Move enemies
-        #enemies_x, enemies_y,enemy_direction = jax.lax.cond(
-        #    jnp.logical_or((state.level%5) == 1, (state.level%5) == 2),
-        #    lambda: phoenix_step(state),
-        #    lambda: jax.lax.cond(
-        #        jnp.logical_or((state.level%5) == 3, (state.level%5) == 4),
-        #        lambda: bat_step(state),
-        #        lambda: (state.enemies_x.astype(jnp.float32), state.enemies_y.astype(jnp.float32),jnp.broadcast_to(state.enemy_direction.astype(jnp.float32),(8,)))  # No movement for level 5
-        #    )
-        #)
         state = jax.lax.cond(
             jnp.logical_or((state.level % 5) == 1, (state.level % 5) == 2),
             lambda: phoenix_step(state),
@@ -529,7 +554,16 @@ class JaxPhoenix(JaxEnvironment[PhoenixState, PhoenixOberservation, PhoenixInfo,
                 lambda: boss_step(state),
             )
         )
-        ###Enemy shooting
+        projectile_x = jnp.where(firing,
+                                 state.player_x + 2,
+                                 state.projectile_x)
+
+        projectile_y = jnp.where(firing,
+                                 state.player_y - 1,
+                                 jnp.where(projectile_active,
+                                           state.projectile_y - 5,  # move up if active
+                                           state.projectile_y))  # stay
+        projectile_y = jnp.where(projectile_y < 0, -6, projectile_y)
         # use step_counter for randomness
         def generate_fire_key_and_chance(step_counter: int, fire_chance: float) -> Tuple[jax.random.PRNGKey, float]:
             key = jax.random.PRNGKey(step_counter)
