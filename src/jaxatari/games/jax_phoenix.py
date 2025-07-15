@@ -161,6 +161,7 @@ class PhoenixState(NamedTuple):
     blue_blocks: chex.Array
     red_blocks: chex.Array
     green_blocks: chex.Array
+    rotation: chex.Array
     projectile_x: chex.Array = jnp.array(-1)  # Standardwert: kein Projektil
     projectile_y: chex.Array = jnp.array(-1)  # Standardwert: kein Projektil # Gegner Y-Positionen
     enemy_projectile_x: chex.Array = jnp.full((MAX_PHOENIX,), -1) # Enemy projectile X-Positionen
@@ -170,7 +171,6 @@ class PhoenixState(NamedTuple):
     lives: chex.Array = jnp.array(5) # Lives
     player_respawn_timer: chex.Array = 0 # Invincibility timer
     level: chex.Array = jnp.array(1)  # Level, starts at 1
-
 
 
 
@@ -394,11 +394,10 @@ def bat_step(state):
 
 def boss_step(state):
 
-    step_size = 0.025
+    step_size = 0.05
     step_count = state.step_counter
-    skip_every = 2
 
-    condition = (state.enemies_y[0] <= 100) & ((step_count % skip_every) != 0)
+    condition = (state.enemies_y[0] <= 100) & ((step_count % 30) == 0)
 
     def move_blocks(blocks):
         not_removed = blocks[:, 0] > -99  # Filter out removed blocks
@@ -457,10 +456,6 @@ def boss_step(state):
         new_green,_ = remove_first_hit(new_green_blocks, green_block_collisions)
         new_red,_ = remove_first_hit(new_red_blocks, red_block_collisions)
         new_blue, first_hit_idx = remove_first_hit(new_blue_blocks, blue_block_collisions)
-
-        # Rotate the blue blocks to the right, when the first hit accured
-            #jax.debug.print("new_blue: {}", jnp.any(new_blue_blocks == -100)) # this works
-        jax.debug.print("new_blue: {}", new_blue)
         hit_any = jnp.any(green_block_collisions) | jnp.any(red_block_collisions) | jnp.any(blue_block_collisions)
         return new_green, new_red, new_blue, hit_any
 
@@ -473,6 +468,14 @@ def boss_step(state):
         process_collisions,
         skip_collisions,
         operand=None
+    )
+
+    def rotate(arr):
+        return jnp.stack([jnp.roll(arr[:,0],2),arr[:,1]], axis=1)
+    new_blue_blocks = jax.lax.cond(
+        jnp.logical_and(jnp.any(new_blue_blocks <= -100),step_count % 15 == 0),
+        lambda: rotate(new_blue_blocks),
+        lambda: new_blue_blocks,
     )
     projectile_x = jnp.where(projectile_hit_detected, -1, state.projectile_x)
     projectile_y = jnp.where(projectile_hit_detected, -1, state.projectile_y)
@@ -559,6 +562,7 @@ class JaxPhoenix(JaxEnvironment[PhoenixState, PhoenixOberservation, PhoenixInfo,
             blue_blocks=BLUE_BLOCK_POSITIONS.astype(jnp.float32),
             red_blocks=RED_BLOCK_POSITIONS.astype(jnp.float32),
             green_blocks = GREEN_BLOCK_POSITIONS.astype(jnp.float32),
+            rotation=jnp.array(False),
         )
 
         initial_obs = self._get_observation(return_state)
@@ -722,6 +726,7 @@ class JaxPhoenix(JaxEnvironment[PhoenixState, PhoenixOberservation, PhoenixInfo,
             blue_blocks=state.blue_blocks,
             red_blocks=state.red_blocks,
             green_blocks=state.green_blocks,
+            rotation=state.rotation,
         )
         observation = self._get_observation(return_state)
         env_reward = jnp.where(enemy_hit_detected, 1.0, 0.0)
