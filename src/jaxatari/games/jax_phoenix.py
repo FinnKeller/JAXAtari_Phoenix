@@ -44,6 +44,9 @@ lambda:jnp.array([141 - WIDTH//2, 155 - WIDTH//2, 127- WIDTH//2, 169 - WIDTH//2,
 lambda:jnp.array([123 - WIDTH//2, 170 -WIDTH//2, 123-WIDTH//2, 180-WIDTH//2, 123-WIDTH//2, 170-WIDTH//2,123-WIDTH//2,-1 ]).astype(jnp.int32),
 lambda:jnp.array([123 - WIDTH//2, 180 - WIDTH//2, 123- WIDTH//2, 170 - WIDTH//2,123 - WIDTH//2, 180 - WIDTH//2, 123 - WIDTH//2,-1]).astype(jnp.int32),
 lambda:jnp.array([78, -1, -1, -1, -1, -1 ,-1 ,-1]).astype(jnp.int32),
+
+
+
 ]
 ENEMY_POSITIONS_Y_LIST = [
 lambda:jnp.array([HEIGHT-135,HEIGHT- 153,HEIGHT- 117,HEIGHT- 171,HEIGHT- 117,HEIGHT- 171,HEIGHT- 135,HEIGHT- 153]).astype(jnp.int32),
@@ -51,6 +54,7 @@ lambda:jnp.array([HEIGHT-171, HEIGHT-171, HEIGHT-135, HEIGHT-135, HEIGHT-153, HE
 lambda:jnp.array([HEIGHT-99,HEIGHT- 117,HEIGHT- 135,HEIGHT- 153,HEIGHT- 171,HEIGHT- 63,HEIGHT- 81, HEIGHT+20]).astype(jnp.int32),
 lambda:jnp.array([HEIGHT-63, HEIGHT-81, HEIGHT-99, HEIGHT-117, HEIGHT-135, HEIGHT-153, HEIGHT-171, HEIGHT+20]).astype(jnp.int32),
 lambda:jnp.array([HEIGHT-132, HEIGHT+20 ,  HEIGHT+20 ,  HEIGHT+20 ,  HEIGHT+20,  HEIGHT+20 , HEIGHT+20 , HEIGHT+20]).astype(jnp.int32),
+
 ]
 
 MAX_PLAYER = 1
@@ -473,7 +477,7 @@ def boss_step(state):
     def rotate(arr):
         return jnp.stack([jnp.roll(arr[:,0],1),arr[:,1]], axis=1)
     new_blue_blocks = jax.lax.cond(
-        jnp.logical_and(jnp.any(new_blue_blocks <= -100),step_count % 20 == 0),
+        jnp.logical_and(jnp.any(new_blue_blocks <= -100),step_count % 20 == 0),    
         lambda: rotate(new_blue_blocks),
         lambda: new_blue_blocks,
     )
@@ -556,7 +560,7 @@ class JaxPhoenix(JaxEnvironment[PhoenixState, PhoenixOberservation, PhoenixInfo,
             score = jnp.array(0), # Standardwert: Score=0
             lives=jnp.array(5), # Standardwert: 5 Leben
             player_respawn_timer=jnp.array(5),
-            level=jnp.array(1),
+            level=jnp.array(5),
             phoenix_cooldown=jnp.array(30),
             vertical_direction=jnp.full((8,),1.0),
             blue_blocks=BLUE_BLOCK_POSITIONS.astype(jnp.float32),
@@ -590,7 +594,8 @@ class JaxPhoenix(JaxEnvironment[PhoenixState, PhoenixOberservation, PhoenixInfo,
         )
         projectile_x = jnp.where(firing,
                                  state.player_x + 2,
-                                 state.projectile_x)
+
+                                 state.projectile_x).astype(jnp.int32)
 
         projectile_y = jnp.where(firing,
                                  state.player_y - 1,
