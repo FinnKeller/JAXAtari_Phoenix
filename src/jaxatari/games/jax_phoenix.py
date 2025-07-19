@@ -177,6 +177,7 @@ class PhoenixConstants(NamedTuple):
 #PLAYER_POSITION = 76, 175 #210-175 =
 #PLAYER_COLOR = (213, 130, 74)
 #PLAYER_BOUNDS = (0, 155) # (left, right)
+
 # Enemy Positions for level 1(phoenix)
 #ENEMY_POSITIONS_X = jnp.array([123 - self.consts.WIDTH//2, 123 -WIDTH//2, 136-WIDTH//2, 136-WIDTH//2, 160-WIDTH//2, 160-WIDTH//2, 174-WIDTH//2, 174-WIDTH//2])
 #ENEMY_POSITIONS_Y = jnp.array([HEIGHT-135,HEIGHT- 153,HEIGHT- 117,HEIGHT- 171,HEIGHT- 117,HEIGHT- 171,HEIGHT- 135,HEIGHT- 153])
@@ -398,6 +399,7 @@ def load_sprites(): # load Sprites
     )
 # load sprites on module layer
 (SPRITE_PLAYER, SPRITE_BG, SPRITE_PLAYER_PROJECTILE, SPRITE_FLOOR, SPRITE_ENEMY1, SPRITE_ENEMY2, SPRITE_BAT_HIGH_WING, SPRITE_BAT_LOW_WING,SPRITE_BAT_2_HIGH_WING,SPRITE_BAT_2_LOW_WING,SPRITE_BOSS, SPRITE_ENEMY_PROJECTILE, DIGITS, LIFE_INDICATOR, SPRITE_RED_BLOCK, SPRITE_BLUE_BLOCK, SPRITE_GREEN_BLOCK) = load_sprites()
+
 
 class JaxPhoenix(JaxEnvironment[PhoenixState, PhoenixOberservation, PhoenixInfo, None]):
     @partial(jax.jit, static_argnums=(0,))
@@ -693,12 +695,13 @@ class JaxPhoenix(JaxEnvironment[PhoenixState, PhoenixOberservation, PhoenixInfo,
             score = jnp.array(0), # Standardwert: Score=0
             lives=jnp.array(5), # Standardwert: 5 Leben
             player_respawn_timer=jnp.array(5),
-            level=jnp.array(1),
+            level=jnp.array(5),
             phoenix_cooldown=jnp.array(30),
             vertical_direction=jnp.full((8,),1.0),
+
             blue_blocks=self.consts.BLUE_BLOCK_POSITIONS.astype(jnp.float32),
             red_blocks=self.consts.RED_BLOCK_POSITIONS.astype(jnp.float32),
-            green_blocks = self.consts.GREEN_BLOCK_POSITIONS.astype(jnp.float32),
+            green_blocks = self.consts.GREEN_BLOCK_POSITIONS.astype(jnp.float32),            
             rotation=jnp.array(False),
         )
 
@@ -722,11 +725,14 @@ class JaxPhoenix(JaxEnvironment[PhoenixState, PhoenixOberservation, PhoenixInfo,
                 jnp.logical_or((state.level % 5) == 3, (state.level % 5) == 4),
                 lambda: self.bat_step(state),
                 lambda: self.boss_step(state),
+
             )
         )
         projectile_x = jnp.where(firing,
                                  state.player_x + 2,
-                                 state.projectile_x)
+
+
+                                 state.projectile_x).astype(jnp.int32)
 
         projectile_y = jnp.where(firing,
                                  state.player_y - 1,
