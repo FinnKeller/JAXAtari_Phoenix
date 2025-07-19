@@ -590,7 +590,7 @@ class JaxPhoenix(JaxEnvironment[PhoenixState, PhoenixOberservation, PhoenixInfo,
         )
         projectile_x = jnp.where(firing,
                                  state.player_x + 2,
-                                 state.projectile_x)
+                                 state.projectile_x).astype(jnp.int32)
 
         projectile_y = jnp.where(firing,
                                  state.player_y - 1,
