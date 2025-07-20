@@ -31,6 +31,7 @@ class PhoenixConstants(NamedTuple):
     PROJECTILE_WIDTH: int = 2
     PROJECTILE_HEIGHT: int = 4
     ENEMY_WIDTH: int = 10
+    WING_SIZE: int = 4
     ENEMY_HEIGHT:int = 10
     BLOCK_WIDTH:int = 4
     BLOCK_HEIGHT:int = 4
@@ -167,6 +168,7 @@ class PhoenixState(NamedTuple):
     green_blocks: chex.Array
     invincibility: chex.Array
     invincibility_timer: chex.Array
+    wings: chex.Array
     projectile_x: chex.Array = jnp.array(-1)  # Standardwert: kein Projektil
     projectile_y: chex.Array = jnp.array(-1)  # Standardwert: kein Projektil # Gegner Y-Positionen
     enemy_projectile_x: chex.Array = jnp.full((8,), -1) # Enemy projectile X-Positionen
@@ -355,6 +357,8 @@ class JaxPhoenix(JaxEnvironment[PhoenixState, PhoenixOberservation, PhoenixInfo,
     def bat_step(self, state):
         bat_step_size = 0.5
         active_bats = (state.enemies_x > -1) & (state.enemies_y < self.consts.HEIGHT + 10)
+        enemy_positions = jnp.stack([state.enemies_x, state.enemies_y], axis=1)
+        projectile_pos = jnp.array([state.projectile_x, state.projectile_y])
 
         # Initialisiere neue Richtungen für jede Fledermaus
         new_directions = jnp.where(
@@ -367,16 +371,28 @@ class JaxPhoenix(JaxEnvironment[PhoenixState, PhoenixOberservation, PhoenixInfo,
                 state.enemy_direction.astype(jnp.float32)  # Ensure consistency
             )
         )
-
         # Bewege Fledermäuse basierend auf ihrer individuellen Richtung
         new_enemies_x = jnp.where(active_bats, state.enemies_x + (new_directions * bat_step_size), state.enemies_x)
+        def check_collision_left_wing(entity_pos, projectile_pos):
+            enemy_x, enemy_y = entity_pos
+            projectile_x, projectile_y = projectile_pos
+
+            collision_x_left = (projectile_x + self.consts.PROJECTILE_WIDTH > enemy_x - 4) & (
+                        projectile_x < enemy_x + self.consts.ENEMY_WIDTH)
+            collision_y = (projectile_y + self.consts.PROJECTILE_HEIGHT > enemy_y) & (
+                        projectile_y < enemy_y + self.consts.ENEMY_HEIGHT)
+            return collision_x_left & collision_y
+
+        left_wing_collisions = jax.vmap(lambda entity_pos: check_collision_left_wing(entity_pos, projectile_pos))(
+            enemy_positions)
+
 
         # Begrenze die Positionen innerhalb des Spielfelds
         new_enemies_x = jnp.clip(new_enemies_x, self.consts.PLAYER_BOUNDS[0], self.consts.PLAYER_BOUNDS[1])
         state = state._replace(
             enemies_x=new_enemies_x.astype(jnp.float32),
             enemies_y=state.enemies_y.astype(jnp.float32),
-            enemy_direction=new_directions.astype(jnp.float32)
+            enemy_direction=new_directions.astype(jnp.float32),
         )
 
         return state
@@ -498,11 +514,12 @@ class JaxPhoenix(JaxEnvironment[PhoenixState, PhoenixOberservation, PhoenixInfo,
             score = jnp.array(0), # Standardwert: Score=0
             lives=jnp.array(5), # Standardwert: 5 Leben
             player_respawn_timer=jnp.array(5),
-            level=jnp.array(5),
+            level=jnp.array(1),
             phoenix_cooldown=jnp.array(30),
             vertical_direction=jnp.full((8,),1.0),
             invincibility=jnp.array(False),
             invincibility_timer=jnp.array(0),
+            wings=jnp.array(2),
 
             blue_blocks=self.consts.BLUE_BLOCK_POSITIONS.astype(jnp.float32),
             red_blocks=self.consts.RED_BLOCK_POSITIONS.astype(jnp.float32),
@@ -589,6 +606,9 @@ class JaxPhoenix(JaxEnvironment[PhoenixState, PhoenixOberservation, PhoenixInfo,
         enemy_collisions = jax.vmap(lambda enemy_pos: check_collision(enemy_pos, projectile_pos))(enemy_positions)
         enemy_hit_detected = jnp.any(enemy_collisions)
 
+        # Wing collision logic
+        # wing states
+
 
         # Gegner und Projektil entfernen wenn eine Kollision erkannt wurde
         enemies_x = jnp.where(enemy_collisions, -1, state.enemies_x).astype(jnp.float32)
@@ -672,7 +692,8 @@ class JaxPhoenix(JaxEnvironment[PhoenixState, PhoenixOberservation, PhoenixInfo,
             red_blocks=state.red_blocks,
             green_blocks=state.green_blocks,
             invincibility=state.invincibility,
-            invincibility_timer=state.invincibility_timer
+            invincibility_timer=state.invincibility_timer,
+            wings = state.wings,
         )
         observation = self._get_observation(return_state)
         env_reward = jnp.where(enemy_hit_detected, 1.0, 0.0)
