@@ -300,9 +300,10 @@ class JaxPhoenix(JaxEnvironment[PhoenixState, PhoenixOberservation, PhoenixInfo,
 
         return state
 
+
+
     def phoenix_step(self, state):
         enemy_step_size = 0.4
-        vertical_step_size = 0.3
 
         active_enemies = (state.enemies_x > -1) & (state.enemies_y < self.consts.HEIGHT + 10)
 
@@ -321,21 +322,10 @@ class JaxPhoenix(JaxEnvironment[PhoenixState, PhoenixOberservation, PhoenixInfo,
                 lambda: state.enemy_direction.astype(jnp.float32),
             ),
         )
-        # Choose the two most bottom phoenix enemies to move
-        # jax.debug.print("Enemy Y positions: {}", state.enemies_y)
-        # jax.debug.print("ENEMY_Y: {}", ENEMY_POSITIONS_Y)
-        enemy_indices = jnp.argsort(state.enemies_y, axis=0)[-2:]
-        hit_bottom_mask = (state.enemies_y >= 159) & jnp.isin(jnp.arange(state.enemies_y.shape[0]), enemy_indices)
-        new_vertical_direction = jnp.where(
-            hit_bottom_mask,
-            -state.vertical_direction,
-            state.vertical_direction
-        )
-        new_enemies_y = jnp.where(
-            jnp.isin(jnp.arange(state.enemies_y.shape[0]), enemy_indices),
-            state.enemies_y + (new_vertical_direction * vertical_step_size),
-            state.enemies_y
-        )
+
+        # Entferne vertikale Bewegung der Phoenixe
+        new_enemies_y = state.enemies_y
+        new_vertical_direction = state.vertical_direction
 
         # Gegner basierend auf der Richtung bewegen, nur aktive Gegner
         new_enemies_x = jnp.where(active_enemies, state.enemies_x + (new_direction * enemy_step_size), state.enemies_x)
@@ -343,7 +333,6 @@ class JaxPhoenix(JaxEnvironment[PhoenixState, PhoenixOberservation, PhoenixInfo,
         # Begrenzung der Positionen innerhalb des Spielfelds
         new_enemies_x = jnp.clip(new_enemies_x, self.consts.PLAYER_BOUNDS[0], self.consts.PLAYER_BOUNDS[1])
 
-        # jax.debug.print("dir :{}", new_vertical_direction)
         state = state._replace(
             enemies_x=new_enemies_x.astype(jnp.float32),
             enemy_direction=new_direction.astype(jnp.float32),
@@ -351,7 +340,6 @@ class JaxPhoenix(JaxEnvironment[PhoenixState, PhoenixOberservation, PhoenixInfo,
             vertical_direction=new_vertical_direction
         )
 
-        # Aktualisierten Zustand zurückgeben
         return state
 
     def bat_step(self, state):
