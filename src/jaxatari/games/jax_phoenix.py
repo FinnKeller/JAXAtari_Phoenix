@@ -305,7 +305,6 @@ class JaxPhoenix(JaxEnvironment[PhoenixState, PhoenixOberservation, PhoenixInfo,
 
         return state
 
-
     def phoenix_step(self, state):
         enemy_step_size = 0.4
 
@@ -323,39 +322,45 @@ class JaxPhoenix(JaxEnvironment[PhoenixState, PhoenixOberservation, PhoenixInfo,
                 & (state.phoenix_cooldown == 0)
                 & ((state.phoenix_original_y == -1) | (state.enemies_y == state.phoenix_original_y))
         )
-        key = jax.random.PRNGKey(state.step_counter)  # Use step_counter for randomness
-        attack_chance = jax.random.uniform(key, shape=()) < 0.05# 5% chance to attack (Skalar)
-        # attack_trigger = can_attack & attack_chance # shape (8,)
+        key = jax.random.PRNGKey(state.step_counter)
+        attack_chance = jax.random.uniform(key, shape=()) < 0.05
         attack_trigger = lowest_mask & jnp.any(can_attack & attack_chance)
 
-        min_attack_y = jnp.max(masked_enemies_y) + 20  # Minimum Y position for attack target
-        max_attack_y = 200#state.player_y -10
-        random_y_target_scalar = jax.random.uniform(key, minval=min_attack_y, maxval=max_attack_y, shape=()).astype(jnp.float32)
-        random_y_target = jnp.full((8,), random_y_target_scalar, dtype=jnp.float32)
+        # Individuelle Ziele für jeden Phoenix generieren
+        min_attack_y = jnp.max(masked_enemies_y) + 20
+        max_attack_y = self.consts.HEIGHT - 30  # Ziel soll unter dem Spieler sein
+
+        # Separate Keys für jeden Phoenix
+        keys = jax.random.split(key, 8)
+        random_y_targets = jax.vmap(lambda k: jax.random.uniform(k, minval=min_attack_y, maxval=max_attack_y))(keys)
 
         new_phoenix_do_attack = jnp.where(attack_trigger, True, state.phoenix_do_attack)
         new_phoenix_attack_target_y = jnp.where(
             attack_trigger,
-            random_y_target,
+            random_y_targets,
             state.phoenix_attack_target_y
         ).astype(jnp.float32)
-        new_phoenix_original_y = jnp.where(attack_trigger, state.enemies_y, state.phoenix_original_y).astype(jnp.float32)
+        new_phoenix_original_y = jnp.where(attack_trigger, state.enemies_y, state.phoenix_original_y).astype(
+            jnp.float32)
 
         # 3: Angriff ausführen
-        attack_speed = 0.4  # Geschwindigkeit des Angriffs
-        going_down = state.phoenix_do_attack & (state.enemies_y < state.phoenix_attack_target_y)
-        going_up = state.phoenix_do_attack & (state.enemies_y > state.phoenix_attack_target_y)
+        attack_speed = 0.4
+        # Toleranz für Zielvergleich
+        tolerance = 0.5
+
+        going_down = state.phoenix_do_attack & (state.enemies_y < state.phoenix_attack_target_y - tolerance)
+        going_up = state.phoenix_do_attack & (state.enemies_y > state.phoenix_attack_target_y + tolerance)
         new_enemies_y = jnp.where(going_down, state.enemies_y + attack_speed, state.enemies_y)
         new_enemies_y = jnp.where(going_up, state.enemies_y - attack_speed, new_enemies_y)
 
-        # 4: Angriff beenden, wenn Ziel erreicht
-        attack_finished = state.phoenix_do_attack & (new_enemies_y == new_phoenix_attack_target_y)
+        # 4: Angriff beenden, wenn Ziel erreicht (mit Toleranz)
+        target_reached = ~going_down & ~going_up & state.phoenix_do_attack
+        attack_finished = target_reached
         new_enemies_y = jnp.where(attack_finished, state.phoenix_original_y, new_enemies_y)
         new_phoenix_do_attack = jnp.where(attack_finished, False, new_phoenix_do_attack)
         new_phoenix_attack_target_y = jnp.where(attack_finished, -1, new_phoenix_attack_target_y)
         new_phoenix_original_y = jnp.where(attack_finished, -1, new_phoenix_original_y)
-        new_phoenix_cooldown = jnp.where(attack_finished, 30, state.phoenix_cooldown) # z.B. 30 Frames Cooldown
-
+        new_phoenix_cooldown = jnp.where(attack_finished, 30, state.phoenix_cooldown)
 
         # 5: Nächste Ebene aktivieren, wenn alle Phoenixe der aktuellen Ebene tot sind
         all_lowest_dead = jnp.all(~lowest_mask)
