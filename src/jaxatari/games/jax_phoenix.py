@@ -169,6 +169,11 @@ class PhoenixState(NamedTuple):
     invincibility: chex.Array
     invincibility_timer: chex.Array
     bat_wings: chex.Array
+
+    phoenix_do_attack: chex.Array  # Phoenix attack state
+    phoenix_attack_target_y: chex.Array  # Target Y position for Phoenix attack
+    phoenix_original_y: chex.Array  # Original Y position of the Phoenix
+
     projectile_x: chex.Array = jnp.array(-1)  # Standardwert: kein Projektil
     projectile_y: chex.Array = jnp.array(-1)  # Standardwert: kein Projektil # Gegner Y-Positionen
     enemy_projectile_x: chex.Array = jnp.full((8,), -1) # Enemy projectile X-Positionen
@@ -300,9 +305,9 @@ class JaxPhoenix(JaxEnvironment[PhoenixState, PhoenixOberservation, PhoenixInfo,
 
         return state
 
+
     def phoenix_step(self, state):
         enemy_step_size = 0.4
-        vertical_step_size = 0.3
 
         active_enemies = (state.enemies_x > -1) & (state.enemies_y < self.consts.HEIGHT + 10)
 
@@ -321,21 +326,6 @@ class JaxPhoenix(JaxEnvironment[PhoenixState, PhoenixOberservation, PhoenixInfo,
                 lambda: state.enemy_direction.astype(jnp.float32),
             ),
         )
-        # Choose the two most bottom phoenix enemies to move
-        # jax.debug.print("Enemy Y positions: {}", state.enemies_y)
-        # jax.debug.print("ENEMY_Y: {}", ENEMY_POSITIONS_Y)
-        enemy_indices = jnp.argsort(state.enemies_y, axis=0)[-2:]
-        hit_bottom_mask = (state.enemies_y >= 159) & jnp.isin(jnp.arange(state.enemies_y.shape[0]), enemy_indices)
-        new_vertical_direction = jnp.where(
-            hit_bottom_mask,
-            -state.vertical_direction,
-            state.vertical_direction
-        )
-        new_enemies_y = jnp.where(
-            jnp.isin(jnp.arange(state.enemies_y.shape[0]), enemy_indices),
-            state.enemies_y + (new_vertical_direction * vertical_step_size),
-            state.enemies_y
-        )
 
         # Gegner basierend auf der Richtung bewegen, nur aktive Gegner
         new_enemies_x = jnp.where(active_enemies, state.enemies_x + (new_direction * enemy_step_size), state.enemies_x)
@@ -343,15 +333,15 @@ class JaxPhoenix(JaxEnvironment[PhoenixState, PhoenixOberservation, PhoenixInfo,
         # Begrenzung der Positionen innerhalb des Spielfelds
         new_enemies_x = jnp.clip(new_enemies_x, self.consts.PLAYER_BOUNDS[0], self.consts.PLAYER_BOUNDS[1])
 
-        # jax.debug.print("dir :{}", new_vertical_direction)
         state = state._replace(
             enemies_x=new_enemies_x.astype(jnp.float32),
             enemy_direction=new_direction.astype(jnp.float32),
-            enemies_y=new_enemies_y.astype(jnp.float32),
-            vertical_direction=new_vertical_direction
+            enemies_y=state.enemies_y.astype(jnp.float32),  # enemies_y bleibt unverändert
+            vertical_direction=state.vertical_direction.astype(jnp.float32),  # vertical_direction bleibt unverändert
+            # enemies_y bleibt unverändert
+            # vertical_direction bleibt unverändert
         )
 
-        # Aktualisierten Zustand zurückgeben
         return state
 
     def bat_step(self, state):
@@ -556,6 +546,10 @@ class JaxPhoenix(JaxEnvironment[PhoenixState, PhoenixOberservation, PhoenixInfo,
             invincibility_timer=jnp.array(0),
             bat_wings=jnp.full((8,), 2),
 
+            phoenix_do_attack = jnp.full((8,), 0, dtype=bool),  # Phoenix attack state
+            phoenix_attack_target_y = jnp.full((2,), -1, dtype=jnp.float32),  # Target Y position for Phoenix attack
+            phoenix_original_y = jnp.full((2,), -1, dtype=jnp.float32),  # Original Y position of the Phoenix
+
             blue_blocks=self.consts.BLUE_BLOCK_POSITIONS.astype(jnp.float32),
             red_blocks=self.consts.RED_BLOCK_POSITIONS.astype(jnp.float32),
             green_blocks = self.consts.GREEN_BLOCK_POSITIONS.astype(jnp.float32),            
@@ -725,7 +719,10 @@ class JaxPhoenix(JaxEnvironment[PhoenixState, PhoenixOberservation, PhoenixInfo,
             green_blocks=state.green_blocks,
             invincibility=state.invincibility,
             invincibility_timer=state.invincibility_timer,
-            bat_wings=state.bat_wings
+            bat_wings=state.bat_wings,
+            phoenix_do_attack=state.phoenix_do_attack,
+            phoenix_attack_target_y=state.phoenix_attack_target_y,
+            phoenix_original_y=state.phoenix_original_y
 
         )
         observation = self._get_observation(return_state)
