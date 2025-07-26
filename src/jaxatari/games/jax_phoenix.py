@@ -162,7 +162,6 @@ class PhoenixState(NamedTuple):
     enemies_y: chex.Array
     enemy_direction: chex.Array
     vertical_direction: chex.Array
-    phoenix_cooldown: chex.Array
     blue_blocks: chex.Array
     red_blocks: chex.Array
     green_blocks: chex.Array
@@ -173,6 +172,7 @@ class PhoenixState(NamedTuple):
     phoenix_do_attack: chex.Array  # Phoenix attack state
     phoenix_attack_target_y: chex.Array  # Target Y position for Phoenix attack
     phoenix_original_y: chex.Array  # Original Y position of the Phoenix
+    phoenix_cooldown: chex.Array
 
     projectile_x: chex.Array = jnp.array(-1)  # Standardwert: kein Projektil
     projectile_y: chex.Array = jnp.array(-1)  # Standardwert: kein Projektil # Gegner Y-Positionen
@@ -311,6 +311,63 @@ class JaxPhoenix(JaxEnvironment[PhoenixState, PhoenixOberservation, PhoenixInfo,
 
         active_enemies = (state.enemies_x > -1) & (state.enemies_y < self.consts.HEIGHT + 10)
 
+        # 1: Unterste aktive Phoenixe bestimmen
+        masked_enemies_y = jnp.where(active_enemies, state.enemies_y, -jnp.inf)
+        max_y = jnp.max(masked_enemies_y)
+        lowest_mask = (state.enemies_y == max_y) & active_enemies
+
+        # 2: Angriff starten, falls möglich
+        can_attack = (
+                lowest_mask
+                & (~state.phoenix_do_attack)
+                & (state.phoenix_cooldown == 0)
+                & ((state.phoenix_original_y == -1) | (state.enemies_y == state.phoenix_original_y))
+        )
+        key = jax.random.PRNGKey(state.step_counter)  # Use step_counter for randomness
+        attack_chance = jax.random.uniform(key, shape=()) < 0.05# 5% chance to attack (Skalar)
+        # attack_trigger = can_attack & attack_chance # shape (8,)
+        attack_trigger = lowest_mask & jnp.any(can_attack & attack_chance)
+
+        min_attack_y = jnp.max(masked_enemies_y) + 20  # Minimum Y position for attack target
+        max_attack_y = 200#state.player_y -10
+        random_y_target_scalar = jax.random.uniform(key, minval=min_attack_y, maxval=max_attack_y, shape=()).astype(jnp.float32)
+        random_y_target = jnp.full((8,), random_y_target_scalar, dtype=jnp.float32)
+
+        new_phoenix_do_attack = jnp.where(attack_trigger, True, state.phoenix_do_attack)
+        new_phoenix_attack_target_y = jnp.where(
+            attack_trigger,
+            random_y_target,
+            state.phoenix_attack_target_y
+        ).astype(jnp.float32)
+        new_phoenix_original_y = jnp.where(attack_trigger, state.enemies_y, state.phoenix_original_y).astype(jnp.float32)
+
+        # 3: Angriff ausführen
+        attack_speed = 0.4  # Geschwindigkeit des Angriffs
+        going_down = state.phoenix_do_attack & (state.enemies_y < state.phoenix_attack_target_y)
+        going_up = state.phoenix_do_attack & (state.enemies_y > state.phoenix_attack_target_y)
+        new_enemies_y = jnp.where(going_down, state.enemies_y + attack_speed, state.enemies_y)
+        new_enemies_y = jnp.where(going_up, state.enemies_y - attack_speed, new_enemies_y)
+
+        # 4: Angriff beenden, wenn Ziel erreicht
+        attack_finished = state.phoenix_do_attack & (new_enemies_y == new_phoenix_attack_target_y) # ==state.phoenix_attack_target_y
+        new_phoenix_do_attack = jnp.where(attack_finished, False, new_phoenix_do_attack)
+        new_phoenix_attack_target_y = jnp.where(attack_finished, -1, new_phoenix_attack_target_y)
+        new_phoenix_original_y = jnp.where(attack_finished, -1, new_phoenix_original_y)
+        new_enemies_y = jnp.where(attack_finished, state.phoenix_original_y, new_enemies_y) # TODO Spring vermutlich aktuell dahin statt sich langsam hoch zu bewegen
+        new_phoenix_cooldown = jnp.where(attack_finished, 30, state.phoenix_cooldown)  # z.B. 30 Frames Cooldown
+
+        # 5: Nächste Ebene aktivieren, wenn alle Phoenixe der aktuellen Ebene tot sind
+        all_lowest_dead = jnp.all(~lowest_mask)
+
+        # Wenn ja, dann die nächste Ebene aktivieren
+        def next_lowest_y():
+            next_max_y = jnp.max(jnp.where(active_enemies, state.enemies_y, -1))
+            next_lowest_mask = (state.enemies_y == next_max_y) & active_enemies
+            return next_lowest_mask
+
+        lowest_mask = jax.lax.cond(all_lowest_dead, next_lowest_y, lambda: lowest_mask)
+
+
         # Prüfen, ob ein Gegner die linke oder rechte Grenze erreicht hat
         at_left_boundary = jnp.any(jnp.logical_and(state.enemies_x <= self.consts.PLAYER_BOUNDS[0], active_enemies))
         at_right_boundary = jnp.any(
@@ -333,13 +390,17 @@ class JaxPhoenix(JaxEnvironment[PhoenixState, PhoenixOberservation, PhoenixInfo,
         # Begrenzung der Positionen innerhalb des Spielfelds
         new_enemies_x = jnp.clip(new_enemies_x, self.consts.PLAYER_BOUNDS[0], self.consts.PLAYER_BOUNDS[1])
 
+        new_phoenix_cooldown = jnp.where(new_phoenix_cooldown > 0, new_phoenix_cooldown - 1, 0)
+
         state = state._replace(
             enemies_x=new_enemies_x.astype(jnp.float32),
             enemy_direction=new_direction.astype(jnp.float32),
-            enemies_y=state.enemies_y.astype(jnp.float32),  # enemies_y bleibt unverändert
+            enemies_y = new_enemies_y.astype(jnp.float32),
             vertical_direction=state.vertical_direction.astype(jnp.float32),  # vertical_direction bleibt unverändert
-            # enemies_y bleibt unverändert
-            # vertical_direction bleibt unverändert
+            phoenix_do_attack=new_phoenix_do_attack,
+            phoenix_attack_target_y=new_phoenix_attack_target_y.astype(jnp.float32),
+            phoenix_original_y=new_phoenix_original_y.astype(jnp.float32),
+            phoenix_cooldown=new_phoenix_cooldown.astype(jnp.int32),
         )
 
         return state
@@ -540,15 +601,16 @@ class JaxPhoenix(JaxEnvironment[PhoenixState, PhoenixOberservation, PhoenixInfo,
             lives=jnp.array(5), # Standardwert: 5 Leben
             player_respawn_timer=jnp.array(5),
             level=jnp.array(1),
-            phoenix_cooldown=jnp.array(30),
+
             vertical_direction=jnp.full((8,),1.0),
             invincibility=jnp.array(False),
             invincibility_timer=jnp.array(0),
             bat_wings=jnp.full((8,), 2),
 
             phoenix_do_attack = jnp.full((8,), 0, dtype=bool),  # Phoenix attack state
-            phoenix_attack_target_y = jnp.full((2,), -1, dtype=jnp.float32),  # Target Y position for Phoenix attack
-            phoenix_original_y = jnp.full((2,), -1, dtype=jnp.float32),  # Original Y position of the Phoenix
+            phoenix_attack_target_y = jnp.full((8,), -1, dtype=jnp.float32),  # Target Y position for Phoenix attack
+            phoenix_original_y = jnp.full((8,), -1, dtype=jnp.float32),  # Original Y position of the Phoenix
+            phoenix_cooldown=jnp.full((8,), 0),  # Cooldown für Phoenix-Angriff
 
             blue_blocks=self.consts.BLUE_BLOCK_POSITIONS.astype(jnp.float32),
             red_blocks=self.consts.RED_BLOCK_POSITIONS.astype(jnp.float32),
@@ -635,6 +697,11 @@ class JaxPhoenix(JaxEnvironment[PhoenixState, PhoenixOberservation, PhoenixInfo,
         enemy_collisions = jax.vmap(lambda enemy_pos: check_collision(enemy_pos, projectile_pos))(enemy_positions)
         enemy_hit_detected = jnp.any(enemy_collisions)
 
+        # Update Phoenix attack state if an enemy is hit
+        phoenix_do_attack = jnp.where(enemy_collisions, False, state.phoenix_do_attack)
+        phoenix_attack_target_y = jnp.where(enemy_collisions, -1, state.phoenix_attack_target_y)
+        phoenix_original_y = jnp.where(enemy_collisions, -1, state.phoenix_original_y)
+
 
         # Gegner und Projektil entfernen wenn eine Kollision erkannt wurde
         enemies_x = jnp.where(enemy_collisions, -1, state.enemies_x).astype(jnp.float32)
@@ -712,7 +779,6 @@ class JaxPhoenix(JaxEnvironment[PhoenixState, PhoenixOberservation, PhoenixInfo,
             lives=lives,
             player_respawn_timer = player_respawn_timer,
             level = level,
-            phoenix_cooldown = state.phoenix_cooldown,
             vertical_direction=state.vertical_direction,
             blue_blocks=state.blue_blocks,
             red_blocks=state.red_blocks,
@@ -722,7 +788,8 @@ class JaxPhoenix(JaxEnvironment[PhoenixState, PhoenixOberservation, PhoenixInfo,
             bat_wings=state.bat_wings,
             phoenix_do_attack=state.phoenix_do_attack,
             phoenix_attack_target_y=state.phoenix_attack_target_y,
-            phoenix_original_y=state.phoenix_original_y
+            phoenix_original_y=state.phoenix_original_y,
+            phoenix_cooldown=state.phoenix_cooldown,
 
         )
         observation = self._get_observation(return_state)
