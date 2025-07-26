@@ -349,12 +349,13 @@ class JaxPhoenix(JaxEnvironment[PhoenixState, PhoenixOberservation, PhoenixInfo,
         new_enemies_y = jnp.where(going_up, state.enemies_y - attack_speed, new_enemies_y)
 
         # 4: Angriff beenden, wenn Ziel erreicht
-        attack_finished = state.phoenix_do_attack & (new_enemies_y == new_phoenix_attack_target_y) # ==state.phoenix_attack_target_y
+        attack_finished = state.phoenix_do_attack & (new_enemies_y == new_phoenix_attack_target_y)
+        new_enemies_y = jnp.where(attack_finished, state.phoenix_original_y, new_enemies_y)
         new_phoenix_do_attack = jnp.where(attack_finished, False, new_phoenix_do_attack)
         new_phoenix_attack_target_y = jnp.where(attack_finished, -1, new_phoenix_attack_target_y)
         new_phoenix_original_y = jnp.where(attack_finished, -1, new_phoenix_original_y)
-        new_enemies_y = jnp.where(attack_finished, state.phoenix_original_y, new_enemies_y) # TODO Spring vermutlich aktuell dahin statt sich langsam hoch zu bewegen
-        new_phoenix_cooldown = jnp.where(attack_finished, 30, state.phoenix_cooldown)  # z.B. 30 Frames Cooldown
+        new_phoenix_cooldown = jnp.where(attack_finished, 30, state.phoenix_cooldown) # z.B. 30 Frames Cooldown
+
 
         # 5: Nächste Ebene aktivieren, wenn alle Phoenixe der aktuellen Ebene tot sind
         all_lowest_dead = jnp.all(~lowest_mask)
