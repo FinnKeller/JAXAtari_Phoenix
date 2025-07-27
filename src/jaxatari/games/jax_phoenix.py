@@ -326,22 +326,23 @@ class JaxPhoenix(JaxEnvironment[PhoenixState, PhoenixOberservation, PhoenixInfo,
         attack_chance = jax.random.uniform(key, shape=()) < 0.05
         attack_trigger = lowest_mask & jnp.any(can_attack & attack_chance)
 
-        # Individuelle Ziele für jeden Phoenix generieren
+        # Ein gemeinsames Ziel für alle angreifenden Phoenix
         min_attack_y = jnp.max(masked_enemies_y) + 20
-        max_attack_y = self.consts.HEIGHT - 30  # Ziel soll unter dem Spieler sein
+        max_attack_y = state.player_y - 10 #self.consts.HEIGHT - 30
 
-        # Separate Keys für jeden Phoenix
-        keys = jax.random.split(key, 8)
-        random_y_targets = jax.vmap(lambda k: jax.random.uniform(k, minval=min_attack_y, maxval=max_attack_y))(keys)
+        # Nur ein einziges Ziel für alle Phoenix
+        common_target_y = jax.random.uniform(key, minval=min_attack_y, maxval=max_attack_y)
 
         new_phoenix_do_attack = jnp.where(attack_trigger, True, state.phoenix_do_attack)
+        # Verwende das gleiche Ziel für alle Phoenix
         new_phoenix_attack_target_y = jnp.where(
             attack_trigger,
-            random_y_targets,
+            jnp.full_like(state.phoenix_attack_target_y, common_target_y),
             state.phoenix_attack_target_y
         ).astype(jnp.float32)
         new_phoenix_original_y = jnp.where(attack_trigger, state.enemies_y, state.phoenix_original_y).astype(
             jnp.float32)
+
 
         # 3: Angriff ausführen
         attack_speed = 0.4
@@ -353,14 +354,40 @@ class JaxPhoenix(JaxEnvironment[PhoenixState, PhoenixOberservation, PhoenixInfo,
         new_enemies_y = jnp.where(going_down, state.enemies_y + attack_speed, state.enemies_y)
         new_enemies_y = jnp.where(going_up, state.enemies_y - attack_speed, new_enemies_y)
 
-        # 4: Angriff beenden, wenn Ziel erreicht (mit Toleranz)
+        # 4: Angriff beenden nach einer gemeinsamen Verzögerung
         target_reached = ~going_down & ~going_up & state.phoenix_do_attack
-        attack_finished = target_reached
+
+        # Eine gemeinsame Verzögerung für alle angreifenden Phoenix
+        key_delay = jax.random.PRNGKey(state.step_counter + 123)
+        common_delay = jax.random.randint(key_delay, (), 30, 120)
+
+        # Wenn irgendein Phoenix das Ziel erreicht hat und der Cooldown 0 ist,
+        # starte den gemeinsamen Cooldown für alle
+        any_reached_target = jnp.any(target_reached & (state.phoenix_cooldown == 0))
+
+        # Setze für alle Phoenix den gleichen Cooldown, wenn einer das Ziel erreicht hat
+        new_phoenix_cooldown = jnp.where(
+            any_reached_target,
+            jnp.full_like(state.phoenix_cooldown, common_delay),
+            jnp.where(
+                state.phoenix_cooldown > 0,
+                state.phoenix_cooldown - 1,
+                state.phoenix_cooldown
+            )
+        )
+
+        # Beende den Angriff für alle Phoenix gleichzeitig
+        attack_finished = target_reached & (new_phoenix_cooldown == 1)
+
+        # Führe Angriff zu Ende und setze Phoenix zurück
         new_enemies_y = jnp.where(attack_finished, state.phoenix_original_y, new_enemies_y)
         new_phoenix_do_attack = jnp.where(attack_finished, False, new_phoenix_do_attack)
         new_phoenix_attack_target_y = jnp.where(attack_finished, -1, new_phoenix_attack_target_y)
         new_phoenix_original_y = jnp.where(attack_finished, -1, new_phoenix_original_y)
-        new_phoenix_cooldown = jnp.where(attack_finished, 30, state.phoenix_cooldown)
+
+        # 30 Frames Cooldown nach dem Zurückkehren (gleicher Wert für alle)
+        new_phoenix_cooldown = jnp.where(attack_finished, 30, new_phoenix_cooldown)
+
 
         # 5: Nächste Ebene aktivieren, wenn alle Phoenixe der aktuellen Ebene tot sind
         all_lowest_dead = jnp.all(~lowest_mask)
