@@ -323,7 +323,7 @@ class JaxPhoenix(JaxEnvironment[PhoenixState, PhoenixOberservation, PhoenixInfo,
                 & ((state.phoenix_original_y == -1) | (state.enemies_y == state.phoenix_original_y))
         )
         key = jax.random.PRNGKey(state.step_counter)
-        attack_chance = jax.random.uniform(key, shape=()) < 0.05
+        attack_chance = jax.random.uniform(key, shape=()) < 0.005  # 0.5% Chance für einen Angriff
         jax.debug.print("can_attack: {}, attack_chance: {}", can_attack, attack_chance)
         attack_trigger = lowest_mask & jnp.any(can_attack & attack_chance)
 
