@@ -312,6 +312,7 @@ class JaxPhoenix(JaxEnvironment[PhoenixState, PhoenixOberservation, PhoenixInfo,
         attack_speed = 0.4
         tolerance = 0.5
 
+        # Nur Gegner mit gültiger Position im Spielfeld bewegen
         active_enemies = (state.enemies_x > -1) & (state.enemies_y < self.consts.HEIGHT + 10)
 
         # Unterste aktive Phoenixe (zum Starten eines Angriffs)
@@ -357,12 +358,13 @@ class JaxPhoenix(JaxEnvironment[PhoenixState, PhoenixOberservation, PhoenixInfo,
         drift_sample = jnp.where(apply, dir_sign * magnitude, 0.0).astype(jnp.float32)
         new_phoenix_drift = jnp.where(attack_trigger, drift_sample, state.phoenix_drift)
 
-        # Angriffsbewegung (runter/hoch zum Ziel) – nur wenn im Angriffsmodus
+        # Angriffsbewegung (runter/hoch zum Ziel)
         going_down = new_phoenix_do_attack & (state.enemies_y < new_phoenix_attack_target_y - tolerance)
         going_up = new_phoenix_do_attack & (state.enemies_y > new_phoenix_attack_target_y + tolerance)
 
-        new_enemies_y = jnp.where(going_down, state.enemies_y + attack_speed, state.enemies_y)
-        new_enemies_y = jnp.where(going_up, new_enemies_y - attack_speed, new_enemies_y)
+        # WICHTIG: Y-Bewegung nur für aktive Gegner
+        new_enemies_y = jnp.where(active_enemies & going_down, state.enemies_y + attack_speed, state.enemies_y)
+        new_enemies_y = jnp.where(active_enemies & going_up, new_enemies_y - attack_speed, new_enemies_y)
 
         # Seiten-Drift nur während des Abtauchens/an Zielanflug
         lateral_drift = jnp.where(going_down | going_up, new_phoenix_drift, 0.0).astype(jnp.float32)
@@ -385,13 +387,13 @@ class JaxPhoenix(JaxEnvironment[PhoenixState, PhoenixOberservation, PhoenixInfo,
         new_phoenix_do_attack = jnp.where(start_return, False, new_phoenix_do_attack)
         new_phoenix_attack_target_y = jnp.where(start_return, -1, new_phoenix_attack_target_y)
 
-        # Rückflug: gleiches Tempo wie Angriff
+        # Rückflug: gleiches Tempo wie Angriff (nur aktive Gegner)
         returning_active = new_phoenix_returning
         dy = new_phoenix_original_y - new_enemies_y
         step = jnp.clip(dy, -attack_speed, attack_speed)
-        new_enemies_y = jnp.where(returning_active, new_enemies_y + step, new_enemies_y)
+        new_enemies_y = jnp.where(active_enemies & returning_active, new_enemies_y + step, new_enemies_y)
 
-        arrived = returning_active & (jnp.abs(new_enemies_y - new_phoenix_original_y) <= tolerance)
+        arrived = active_enemies & returning_active & (jnp.abs(new_enemies_y - new_phoenix_original_y) <= tolerance)
         new_enemies_y = jnp.where(arrived, new_phoenix_original_y, new_enemies_y)
         new_phoenix_returning = jnp.where(arrived, False, new_phoenix_returning)
         new_phoenix_original_y = jnp.where(arrived, -1, new_phoenix_original_y)
@@ -400,9 +402,9 @@ class JaxPhoenix(JaxEnvironment[PhoenixState, PhoenixOberservation, PhoenixInfo,
         # Gruppenbewegung: nur während des Abtauchens ausnehmen
         group_mask = active_enemies & (~going_down)
 
-        direction_mask = active_enemies & (new_phoenix_original_y == -1)  # Nur für Gegner, die nicht angreifen
+        # Richtungswechsel nur anhand der oberen Formation
+        direction_mask = active_enemies & (new_phoenix_original_y == -1)
 
-        # Horizontalbegrenzungen anhand der Gruppe bestimmen
         at_left_boundary = jnp.any(jnp.logical_and(state.enemies_x <= self.consts.PLAYER_BOUNDS[0], direction_mask))
         at_right_boundary = jnp.any(
             jnp.logical_and(
@@ -420,14 +422,16 @@ class JaxPhoenix(JaxEnvironment[PhoenixState, PhoenixOberservation, PhoenixInfo,
             ),
         )
 
-        # Horizontale Gruppenbewegung nur für group_mask, Drift nur in der Angriffsphase
+        # Horizontale Bewegung anwenden
         group_step = jnp.where(group_mask, new_direction * enemy_step_size, 0.0).astype(jnp.float32)
         new_enemies_x = jnp.where(
             active_enemies,
             state.enemies_x + group_step + lateral_drift,
             state.enemies_x
         )
-        new_enemies_x = jnp.clip(new_enemies_x, self.consts.PLAYER_BOUNDS[0], self.consts.PLAYER_BOUNDS[1])
+        # WICHTIG: Clipping nur für aktive Gegner, damit Tote (-1) nicht auf 0 geclippt werden
+        clipped_x = jnp.clip(new_enemies_x, self.consts.PLAYER_BOUNDS[0], self.consts.PLAYER_BOUNDS[1])
+        new_enemies_x = jnp.where(active_enemies, clipped_x, state.enemies_x)
 
         # Cooldown am Ende einmal dekrementieren
         new_phoenix_cooldown = jnp.where(new_phoenix_cooldown > 0, new_phoenix_cooldown - 1, 0)
@@ -709,7 +713,9 @@ class JaxPhoenix(JaxEnvironment[PhoenixState, PhoenixOberservation, PhoenixInfo,
 
         # Fire only from active enemies
         can_fire = (state.enemy_projectile_y < 0) & (state.enemies_x > -1)
-        enemy_fire_mask = enemy_should_fire & can_fire
+        not_attacking = jnp.logical_not(jnp.logical_or(state.phoenix_do_attack, state.phoenix_returning))
+        enemy_fire_mask = enemy_should_fire & can_fire & not_attacking
+
 
         # Fire from current enemy positions
         enemy_projectile_x = jnp.where(enemy_fire_mask, state.enemies_x + self.consts.ENEMY_WIDTH // 2,
@@ -856,8 +862,9 @@ class PhoenixRenderer(JAXGameRenderer):
             self.BG_SPRITE,
             self.SPRITE_PLAYER_PROJECTILE,
             self.SPRITE_FLOOR,
-            self.SPRITE_ENEMY1,
-            self.SPRITE_ENEMY2,
+            self.SPRITE_PHOENIX_1,
+            self.SPRITE_PHOENIX_2,
+            self.SPRITE_PHOENIX_ATTACK,
             self.SPRITE_BAT_HIGH_WING,
             self.SPRITE_BAT_LOW_WING,
             self.SPRITE_BAT_2_HIGH_WING,
@@ -889,8 +896,9 @@ class PhoenixRenderer(JAXGameRenderer):
         bat_low_wings_sprite = jr.loadFrame(os.path.join(MODULE_DIR, "./sprites/phoenix/bats/bats_low_wings.npy"))
         bat_2_high_wings_sprite = jr.loadFrame(os.path.join(MODULE_DIR, "./sprites/phoenix/bats/bats_2_high_wings.npy"))
         bat_2_low_wings_sprite = jr.loadFrame(os.path.join(MODULE_DIR, "./sprites/phoenix/bats/bats_2_low_wings.npy"))
-        enemy1_sprite = jr.loadFrame(os.path.join(MODULE_DIR, "./sprites/phoenix/enemy_phoenix.npy"))
-        enemy2_sprite = jr.loadFrame(os.path.join(MODULE_DIR, "./sprites/phoenix/enemy_phoenix_2.npy"))
+        enemy_phoenix_1_sprite = jr.loadFrame(os.path.join(MODULE_DIR, "./sprites/phoenix/enemy_phoenix.npy"))
+        enemy_phoenix_2_sprite = jr.loadFrame(os.path.join(MODULE_DIR, "./sprites/phoenix/enemy_phoenix_2.npy"))
+        enemy_phoenix_attack = jr.loadFrame(os.path.join(MODULE_DIR, "./sprites/phoenix/enemy_phoenix_attack.npy"))
         boss_sprite = jr.loadFrame(os.path.join(MODULE_DIR, "./sprites/phoenix/boss.npy"))
         enemy_projectile = jr.loadFrame(os.path.join(MODULE_DIR, "./sprites/phoenix/enemy_projectile.npy"))
         boss_block_red = jr.loadFrame(os.path.join(MODULE_DIR, "./sprites/phoenix/red_block.npy"))
@@ -909,8 +917,9 @@ class PhoenixRenderer(JAXGameRenderer):
         BG_SPRITE = jnp.expand_dims(np.zeros_like(bg_sprites), axis=0)
         SPRITE_FLOOR = jnp.expand_dims(floor_sprite, axis=0)
         SPRITE_PLAYER_PROJECTILE = jnp.expand_dims(player_projectile, axis=0)
-        SPRITE_ENEMY1 = jnp.expand_dims(enemy1_sprite, axis=0)
-        SPRITE_ENEMY2 = jnp.expand_dims(enemy2_sprite, axis=0)
+        SPRITE_PHOENIX_1 = jnp.expand_dims(enemy_phoenix_1_sprite, axis=0)
+        SPRITE_PHOENIX_2 = jnp.expand_dims(enemy_phoenix_2_sprite, axis=0)
+        SPRITE_PHOENIX_ATTACK = jnp.expand_dims(enemy_phoenix_attack, axis=0)
         SPRITE_BAT_HIGH_WING = jnp.expand_dims(bat_high_wings_sprite, axis=0)
         SPRITE_BAT_LOW_WING = jnp.expand_dims(bat_low_wings_sprite, axis=0)
         SPRITE_BAT_2_HIGH_WING = jnp.expand_dims(bat_2_high_wings_sprite, axis=0)
@@ -933,8 +942,9 @@ class PhoenixRenderer(JAXGameRenderer):
             BG_SPRITE,
             SPRITE_PLAYER_PROJECTILE,
             SPRITE_FLOOR,
-            SPRITE_ENEMY1,
-            SPRITE_ENEMY2,
+            SPRITE_PHOENIX_1,
+            SPRITE_PHOENIX_2,
+            SPRITE_PHOENIX_ATTACK,
             SPRITE_BAT_HIGH_WING,
             SPRITE_BAT_LOW_WING,
             SPRITE_BAT_2_HIGH_WING,
@@ -972,9 +982,11 @@ class PhoenixRenderer(JAXGameRenderer):
         raster = jr.render_at(raster, state.player_x, state.player_y, frame_player)
         # Render projectile
         frame_projectile = jr.get_sprite_frame(self.SPRITE_PLAYER_PROJECTILE, 0)
+
         # Render enemies
-        frame_enemy_1 = jr.get_sprite_frame(self.SPRITE_ENEMY1, 0)
-        frame_enemy_2 = jr.get_sprite_frame(self.SPRITE_ENEMY2, 0)
+        frame_phoenix_1 = jr.get_sprite_frame(self.SPRITE_PHOENIX_1, 0)
+        frame_phoenix_2 = jr.get_sprite_frame(self.SPRITE_PHOENIX_2, 0)
+        frame_phoenix_attack = jr.get_sprite_frame(self.SPRITE_PHOENIX_ATTACK, 0)
         frame_bat_high_wings = jr.get_sprite_frame(self.SPRITE_BAT_HIGH_WING, 0)
         frame_bat_low_wings = jr.get_sprite_frame(self.SPRITE_BAT_LOW_WING, 0)
         frame_bat_2_high_wings = jr.get_sprite_frame(self.SPRITE_BAT_2_HIGH_WING, 0)
@@ -995,12 +1007,17 @@ class PhoenixRenderer(JAXGameRenderer):
         def render_enemy(raster, input):
             enemy_pos, wings = input
             x, y = enemy_pos
+            anim_toggle = ((state.step_counter // 32) % 2) == 0  # toggle every 24 steps
 
             def render_level1(r):
-                return jr.render_at(r, x, y, frame_enemy_1)
+                phoenix_frame = jax.lax.select(anim_toggle, frame_phoenix_1, frame_phoenix_2)
+                return jr.render_at(r, x, y, phoenix_frame)
+                #return jr.render_at(r, x, y, frame_phoenix_1)
 
             def render_level2(r):
-                return jr.render_at(r, x, y, frame_enemy_2)
+                phoenix_frame = jax.lax.select(anim_toggle, frame_phoenix_1, frame_phoenix_2)
+                return jr.render_at(r, x, y, phoenix_frame)
+                #return jr.render_at(r, x, y, frame_phoenix_1)
             def render_level3(r):
                 r = jr.render_at(r, x, y, frame_main_bat)
 
