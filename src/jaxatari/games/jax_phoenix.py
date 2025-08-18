@@ -173,6 +173,7 @@ class PhoenixState(NamedTuple):
     phoenix_attack_target_y: chex.Array  # Target Y position for Phoenix attack
     phoenix_original_y: chex.Array  # Original Y position of the Phoenix
     phoenix_cooldown: chex.Array
+    phoenix_drift: chex.Array
 
     projectile_x: chex.Array = jnp.array(-1)  # Standardwert: kein Projektil
     projectile_y: chex.Array = jnp.array(-1)  # Standardwert: kein Projektil # Gegner Y-Positionen
@@ -347,6 +348,24 @@ class JaxPhoenix(JaxEnvironment[PhoenixState, PhoenixOberservation, PhoenixInfo,
         new_phoenix_original_y = jnp.where(attack_trigger, state.enemies_y, state.phoenix_original_y).astype(
             jnp.float32)
 
+        # --- NEU: Drift einmalig beim Start des Angriffs ziehen und im State speichern ---
+        drift_prob = 0.6  # Wkt., dass ein Phoenix überhaupt driftet
+        drift_max = 0.35  # konstante Drift-Geschwindigkeit pro Frame (px) während des Abtauchens
+        num = state.enemies_x.shape[0]
+
+        drift_key = jax.random.PRNGKey(state.step_counter + 999)
+        dir_key, mag_key, on_key = jax.random.split(drift_key, 3)
+
+        dir_sign = jnp.where(jax.random.uniform(dir_key, (num,)) < 0.5, -1.0, 1.0)
+        magnitude = jax.random.uniform(mag_key, (num,)) * drift_max
+        apply = jax.random.uniform(on_key, (num,)) < drift_prob
+
+        drift_sample = jnp.where(apply, dir_sign * magnitude, 0.0).astype(jnp.float32)
+
+        # nur für frisch startende Angreifer setzen, sonst alten Drift beibehalten
+        new_phoenix_drift = jnp.where(attack_trigger, drift_sample, state.phoenix_drift)
+        # --
+
         # 3: Angriff ausführen
         attack_speed = 0.4
         tolerance = 0.5
@@ -360,15 +379,17 @@ class JaxPhoenix(JaxEnvironment[PhoenixState, PhoenixOberservation, PhoenixInfo,
         new_enemies_y = jnp.where(going_up, state.enemies_y - attack_speed, new_enemies_y)
         jax.debug.print("new_enemies_y: {}", new_enemies_y)
 
+        # Seiten-Drift nur während des Abtauchens anwenden, konstant pro Angriff
+        lateral_drift = jnp.where(going_down | going_up, new_phoenix_drift, 0.0).astype(jnp.float32)
+
         # 4: Angriff beenden, wenn Ziel erreicht
         target_reached = ~going_down & ~going_up & state.phoenix_do_attack
 
-        # Eine gemeinsame Verzögerung für alle angreifenden Phoenix
+        # Gemeinsame Verzögerung für alle angreifenden Phoenixe
         key_delay = jax.random.PRNGKey(state.step_counter + 123)
         common_delay = jax.random.randint(key_delay, (), 30, 120)
 
-        # Wenn irgendein Phoenix das Ziel erreicht hat und der Cooldown 0 ist,
-        # starte den gemeinsamen Cooldown für alle
+        # Wenn irgendein Phoenix das Ziel erreicht hat und der Cooldown 0 ist: starte gemeinsamen Cooldown für alle
         any_reached_target = jnp.any(target_reached & (state.phoenix_cooldown == 0))
 
         # Setze für alle Phoenix den gleichen Cooldown, wenn einer das Ziel erreicht hat
@@ -426,10 +447,11 @@ class JaxPhoenix(JaxEnvironment[PhoenixState, PhoenixOberservation, PhoenixInfo,
             ),
         )
 
-        # Gegner basierend auf der Richtung bewegen, nur aktive Gegner
-        new_enemies_x = jnp.where(active_enemies, state.enemies_x + (new_direction * enemy_step_size), state.enemies_x)
-
-        # Begrenzung der Positionen innerhalb des Spielfelds
+        new_enemies_x = jnp.where(
+            active_enemies,
+            state.enemies_x + (new_direction * enemy_step_size) + lateral_drift,
+            state.enemies_x
+        )
         new_enemies_x = jnp.clip(new_enemies_x, self.consts.PLAYER_BOUNDS[0], self.consts.PLAYER_BOUNDS[1])
 
         new_phoenix_cooldown = jnp.where(new_phoenix_cooldown > 0, new_phoenix_cooldown - 1, 0)
@@ -443,6 +465,7 @@ class JaxPhoenix(JaxEnvironment[PhoenixState, PhoenixOberservation, PhoenixInfo,
             phoenix_attack_target_y=new_phoenix_attack_target_y.astype(jnp.float32),
             phoenix_original_y=new_phoenix_original_y.astype(jnp.float32),
             phoenix_cooldown=new_phoenix_cooldown.astype(jnp.int32),
+            phoenix_drift = new_phoenix_drift.astype(jnp.float32),
         )
 
         return state
@@ -653,6 +676,7 @@ class JaxPhoenix(JaxEnvironment[PhoenixState, PhoenixOberservation, PhoenixInfo,
             phoenix_attack_target_y = jnp.full((8,), -1, dtype=jnp.float32),  # Target Y position for Phoenix attack
             phoenix_original_y = jnp.full((8,), -1, dtype=jnp.float32),  # Original Y position of the Phoenix
             phoenix_cooldown=jnp.full((8,), 0),  # Cooldown für Phoenix-Angriff
+            phoenix_drift=jnp.full((8,), 0.0, dtype=jnp.float32),  # Drift-Werte für Phoenix
 
             blue_blocks=self.consts.BLUE_BLOCK_POSITIONS.astype(jnp.float32),
             red_blocks=self.consts.RED_BLOCK_POSITIONS.astype(jnp.float32),
@@ -832,6 +856,7 @@ class JaxPhoenix(JaxEnvironment[PhoenixState, PhoenixOberservation, PhoenixInfo,
             phoenix_attack_target_y=state.phoenix_attack_target_y,
             phoenix_original_y=state.phoenix_original_y,
             phoenix_cooldown=state.phoenix_cooldown,
+            phoenix_drift=state.phoenix_drift,
 
         )
         observation = self._get_observation(return_state)
