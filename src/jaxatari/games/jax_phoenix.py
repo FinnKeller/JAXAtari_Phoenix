@@ -10,6 +10,9 @@ import numpy as np
 from jaxatari.environment import JaxEnvironment, JAXAtariAction as Action
 from jaxatari.spaces import Space
 
+from src.jaxatari.rendering.jax_rendering_utils import pad_to_match
+
+
 # Phoenix Game by: Florian Schmidt, Finn Keller
 # new Constant class
 class PhoenixConstants(NamedTuple):
@@ -913,6 +916,10 @@ class PhoenixRenderer(JAXGameRenderer):
         right_wing_bat_2 = jr.loadFrame(os.path.join(MODULE_DIR, "./sprites/phoenix/bats/bats_2_wing_right.npy"))
         SPRITE_ABILITY = ability
 
+        phoenix_sprites_to_pad = [enemy_phoenix_1_sprite, enemy_phoenix_2_sprite, enemy_phoenix_attack]
+        padded_phoenix_sprites, _ = pad_to_match(phoenix_sprites_to_pad)
+        enemy_phoenix_1_sprite, enemy_phoenix_2_sprite, enemy_phoenix_attack = padded_phoenix_sprites
+
         SPRITE_PLAYER = jnp.expand_dims(player_sprites, axis=0)
         BG_SPRITE = jnp.expand_dims(np.zeros_like(bg_sprites), axis=0)
         SPRITE_FLOOR = jnp.expand_dims(floor_sprite, axis=0)
@@ -1002,20 +1009,29 @@ class PhoenixRenderer(JAXGameRenderer):
         frame_left_wing_bat_2 = jr.get_sprite_frame(self.SPRITE_LEFT_WING_BAT_2, 0)
         frame_right_wing_bat_2 = jr.get_sprite_frame(self.SPRITE_RIGHT_WING_BAT_2, 0)
 
+        # Phoenix attack rendering logic
+        tol = 0.5
+        going_down = state.phoenix_do_attack & (state.enemies_y < state.phoenix_attack_target_y - tol)
+        going_up = state.phoenix_do_attack & (state.enemies_y > state.phoenix_attack_target_y + tol)
+        returning_moving = state.phoenix_returning & (jnp.abs(state.enemies_y - state.phoenix_original_y) > tol)
+        is_moving_vert = going_down | going_up | returning_moving
+
 
 
         def render_enemy(raster, input):
-            enemy_pos, wings = input
+            enemy_pos, wings, moving_vert = input
             x, y = enemy_pos
             anim_toggle = ((state.step_counter // 32) % 2) == 0  # toggle every 24 steps
 
             def render_level1(r):
-                phoenix_frame = jax.lax.select(anim_toggle, frame_phoenix_1, frame_phoenix_2)
+                phoenix_anim = jax.lax.select(anim_toggle, frame_phoenix_1, frame_phoenix_2)
+                phoenix_frame = jax.lax.select(moving_vert, frame_phoenix_attack, phoenix_anim)
                 return jr.render_at(r, x, y, phoenix_frame)
                 #return jr.render_at(r, x, y, frame_phoenix_1)
 
             def render_level2(r):
-                phoenix_frame = jax.lax.select(anim_toggle, frame_phoenix_1, frame_phoenix_2)
+                phoenix_anim = jax.lax.select(anim_toggle, frame_phoenix_1, frame_phoenix_2)
+                phoenix_frame = jax.lax.select(moving_vert, frame_phoenix_attack, phoenix_anim)
                 return jr.render_at(r, x, y, phoenix_frame)
                 #return jr.render_at(r, x, y, frame_phoenix_1)
             def render_level3(r):
@@ -1092,9 +1108,11 @@ class PhoenixRenderer(JAXGameRenderer):
             raster = jax.lax.cond(x > -1, render_if_active, lambda r: r, raster)
 
             return raster, None
+
         enemy_positions = jnp.stack((state.enemies_x, state.enemies_y), axis=1)
         wings_array = jnp.full((enemy_positions.shape[0],), state.bat_wings)
-        inputs = (enemy_positions, wings_array)
+        moving_flags = is_moving_vert
+        inputs = (enemy_positions, wings_array, moving_flags)
         raster, _ = jax.lax.scan(render_enemy, raster, inputs)
 
         # Render player projectiles
