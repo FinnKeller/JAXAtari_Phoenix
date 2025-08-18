@@ -10,7 +10,7 @@ import numpy as np
 from jaxatari.environment import JaxEnvironment, JAXAtariAction as Action
 from jaxatari.spaces import Space
 
-from src.jaxatari.rendering.jax_rendering_utils import pad_to_match
+from jaxatari.rendering.jax_rendering_utils import pad_to_match
 
 
 # Phoenix Game by: Florian Schmidt, Finn Keller
@@ -312,8 +312,8 @@ class JaxPhoenix(JaxEnvironment[PhoenixState, PhoenixOberservation, PhoenixInfo,
 
     def phoenix_step(self, state):
         enemy_step_size = 0.4
-        attack_speed = 0.4
-        tolerance = 0.5
+        attack_speed = 1#0.4
+        tolerance = 0.5 #TODO Kann evtl entfernt werden
 
         # Nur Gegner mit gültiger Position im Spielfeld bewegen
         active_enemies = (state.enemies_x > -1) & (state.enemies_y < self.consts.HEIGHT + 10)
@@ -349,9 +349,9 @@ class JaxPhoenix(JaxEnvironment[PhoenixState, PhoenixOberservation, PhoenixInfo,
         new_phoenix_original_y = jnp.where(attack_trigger, state.enemies_y, state.phoenix_original_y).astype(
             jnp.float32)
 
-        # Drift nur beim Abtauchen/Anflug ziehen
+        # Drift nur beim Abtauchen/Anflug
         drift_prob = 0.6
-        drift_max = 0.35
+        drift_max = 0.6#0.35
         num = state.enemies_x.shape[0]
         drift_key = jax.random.PRNGKey(state.step_counter + 999)
         dir_key, mag_key, on_key = jax.random.split(drift_key, 3)
@@ -862,12 +862,17 @@ class PhoenixRenderer(JAXGameRenderer):
         self.consts = consts or PhoenixConstants()
         (
             self.SPRITE_PLAYER,
+            self.SPRITE_PLAYER_DEATH_1,
+            self.SPRITE_PLAYER_DEATH_2,
+            self.SPRITE_PLAYER_DEATH_3,
             self.BG_SPRITE,
             self.SPRITE_PLAYER_PROJECTILE,
             self.SPRITE_FLOOR,
             self.SPRITE_PHOENIX_1,
             self.SPRITE_PHOENIX_2,
             self.SPRITE_PHOENIX_ATTACK,
+            self.SPRITE_PHOENIX_DEATH_1,
+            self.SPRITE_PHOENIX_DEATH_2,
             self.SPRITE_BAT_HIGH_WING,
             self.SPRITE_BAT_LOW_WING,
             self.SPRITE_BAT_2_HIGH_WING,
@@ -891,7 +896,10 @@ class PhoenixRenderer(JAXGameRenderer):
         MODULE_DIR = os.path.dirname(os.path.abspath(__file__))
 
         # Load individual sprite frames
-        player_sprites = jr.loadFrame(os.path.join(MODULE_DIR, "./sprites/phoenix/player.npy"))
+        player_sprite = jr.loadFrame(os.path.join(MODULE_DIR, "./sprites/phoenix/player.npy"))
+        player_death_1_sprite = jr.loadFrame(os.path.join(MODULE_DIR, "./sprites/phoenix/player_death_1.npy"))
+        player_death_2_sprite = jr.loadFrame(os.path.join(MODULE_DIR, "./sprites/phoenix/player_death_2.npy")) # TODO Testen ob konkatinieren der zusammengehören Sprites zu einem funktioniert
+        player_death_3_sprite = jr.loadFrame(os.path.join(MODULE_DIR, "./sprites/phoenix/player_death_3.npy"))
         bg_sprites = jr.loadFrame(os.path.join(MODULE_DIR, "./sprites/pong/background.npy"))
         floor_sprite = jr.loadFrame(os.path.join(MODULE_DIR, "./sprites/phoenix/floor.npy"))
         player_projectile = jr.loadFrame(os.path.join(MODULE_DIR, "./sprites/phoenix/player_projectile.npy"))
@@ -902,6 +910,8 @@ class PhoenixRenderer(JAXGameRenderer):
         enemy_phoenix_1_sprite = jr.loadFrame(os.path.join(MODULE_DIR, "./sprites/phoenix/enemy_phoenix.npy"))
         enemy_phoenix_2_sprite = jr.loadFrame(os.path.join(MODULE_DIR, "./sprites/phoenix/enemy_phoenix_2.npy"))
         enemy_phoenix_attack = jr.loadFrame(os.path.join(MODULE_DIR, "./sprites/phoenix/enemy_phoenix_attack.npy"))
+        enemy_phoenix_death_1_sprite = jr.loadFrame(os.path.join(MODULE_DIR, "./sprites/phoenix/enemy_phoenix_death_1.npy"))
+        enemy_phoenix_death_2_sprite = jr.loadFrame(os.path.join(MODULE_DIR, "./sprites/phoenix/enemy_phoenix_death_2.npy"))
         boss_sprite = jr.loadFrame(os.path.join(MODULE_DIR, "./sprites/phoenix/boss.npy"))
         enemy_projectile = jr.loadFrame(os.path.join(MODULE_DIR, "./sprites/phoenix/enemy_projectile.npy"))
         boss_block_red = jr.loadFrame(os.path.join(MODULE_DIR, "./sprites/phoenix/red_block.npy"))
@@ -916,17 +926,27 @@ class PhoenixRenderer(JAXGameRenderer):
         right_wing_bat_2 = jr.loadFrame(os.path.join(MODULE_DIR, "./sprites/phoenix/bats/bats_2_wing_right.npy"))
         SPRITE_ABILITY = ability
 
-        phoenix_sprites_to_pad = [enemy_phoenix_1_sprite, enemy_phoenix_2_sprite, enemy_phoenix_attack]
+        phoenix_sprites_to_pad = [enemy_phoenix_1_sprite, enemy_phoenix_2_sprite, enemy_phoenix_attack, enemy_phoenix_death_1_sprite, enemy_phoenix_death_2_sprite]
         padded_phoenix_sprites, _ = pad_to_match(phoenix_sprites_to_pad)
-        enemy_phoenix_1_sprite, enemy_phoenix_2_sprite, enemy_phoenix_attack = padded_phoenix_sprites
+        enemy_phoenix_1_sprite, enemy_phoenix_2_sprite, enemy_phoenix_attack, enemy_phoenix_death_1_sprite, enemy_phoenix_death_2_sprite = padded_phoenix_sprites
 
-        SPRITE_PLAYER = jnp.expand_dims(player_sprites, axis=0)
+        player_sprites_to_pad = [player_sprite, player_death_1_sprite, player_death_2_sprite, player_death_3_sprite]
+        padded_player_sprites, _ = pad_to_match(player_sprites_to_pad)
+        player_sprite, player_death_1_sprite, player_death_2_sprite, player_death_3_sprite = padded_player_sprites
+
+
+        SPRITE_PLAYER = jnp.expand_dims(player_sprite, axis=0)
+        SPRITE_PLAYER_DEATH_1 = jnp.expand_dims(player_death_1_sprite, axis=0)
+        SPRITE_PLAYER_DEATH_2 = jnp.expand_dims(player_death_2_sprite, axis=0)
+        SPRITE_PLAYER_DEATH_3 = jnp.expand_dims(player_death_3_sprite)
         BG_SPRITE = jnp.expand_dims(np.zeros_like(bg_sprites), axis=0)
         SPRITE_FLOOR = jnp.expand_dims(floor_sprite, axis=0)
         SPRITE_PLAYER_PROJECTILE = jnp.expand_dims(player_projectile, axis=0)
         SPRITE_PHOENIX_1 = jnp.expand_dims(enemy_phoenix_1_sprite, axis=0)
         SPRITE_PHOENIX_2 = jnp.expand_dims(enemy_phoenix_2_sprite, axis=0)
         SPRITE_PHOENIX_ATTACK = jnp.expand_dims(enemy_phoenix_attack, axis=0)
+        SPRITE_PHOENIX_DEATH_1 = jnp.expand_dims(enemy_phoenix_death_1_sprite, axis=0)
+        SPRITE_PHOENIX_DEATH_2 = jnp.expand_dims(enemy_phoenix_death_2_sprite, axis=0)
         SPRITE_BAT_HIGH_WING = jnp.expand_dims(bat_high_wings_sprite, axis=0)
         SPRITE_BAT_LOW_WING = jnp.expand_dims(bat_low_wings_sprite, axis=0)
         SPRITE_BAT_2_HIGH_WING = jnp.expand_dims(bat_2_high_wings_sprite, axis=0)
@@ -946,12 +966,17 @@ class PhoenixRenderer(JAXGameRenderer):
         SPRITE_RIGHT_WING_BAT_2 = jnp.expand_dims(right_wing_bat_2, axis=0)
         return (
             SPRITE_PLAYER,
+            SPRITE_PLAYER_DEATH_1,
+            SPRITE_PLAYER_DEATH_2,
+            SPRITE_PLAYER_DEATH_3,
             BG_SPRITE,
             SPRITE_PLAYER_PROJECTILE,
             SPRITE_FLOOR,
             SPRITE_PHOENIX_1,
             SPRITE_PHOENIX_2,
             SPRITE_PHOENIX_ATTACK,
+            SPRITE_PHOENIX_DEATH_1,
+            SPRITE_PHOENIX_DEATH_2,
             SPRITE_BAT_HIGH_WING,
             SPRITE_BAT_LOW_WING,
             SPRITE_BAT_2_HIGH_WING,
