@@ -992,37 +992,47 @@ class PhoenixRenderer(JAXGameRenderer):
         super().__init__()
         self.consts = consts or PhoenixConstants()
         (
+            # --- FIELD SPRITES ---
+            self.BG_SPRITE,
+            self.SPRITE_FLOOR,
+            # --- UI SPRITES ---
+            self.DIGITS,
+            self.LIFE_INDICATOR,
+            # --- PLAYER SPRITES ---
             self.SPRITE_PLAYER,
             self.SPRITE_PLAYER_DEATH_1,
             self.SPRITE_PLAYER_DEATH_2,
             self.SPRITE_PLAYER_DEATH_3,
             self.SPRITE_PLAYER_MOVE,
-            self.BG_SPRITE,
+            self.SPRITE_PLAYER_ABILITY,
+            # --- PROJECTILE SPRITES ---
             self.SPRITE_PLAYER_PROJECTILE,
-            self.SPRITE_FLOOR,
+            self.SPRITE_ENEMY_PROJECTILE,
+            # --- PHOENIX SPRITES ---
             self.SPRITE_PHOENIX_1,
             self.SPRITE_PHOENIX_2,
             self.SPRITE_PHOENIX_ATTACK,
             self.SPRITE_PHOENIX_DEATH_1,
             self.SPRITE_PHOENIX_DEATH_2,
+            # --- BAT BLUE SPRITES ---
+            # --- BAT RED SPRITES ---
+            # --- OLD BAT SPRITES -- TODO: remove
             #self.SPRITE_BAT_HIGH_WING,
             #self.SPRITE_BAT_LOW_WING,
             #self.SPRITE_BAT_2_HIGH_WING,
             #self.SPRITE_BAT_2_LOW_WING,
-            self.SPRITE_BOSS,
-            self.SPRITE_ENEMY_PROJECTILE,
-            self.DIGITS,
-            self.LIFE_INDICATOR,
-            self.SPRITE_RED_BLOCK,
-            self.SPRITE_BLUE_BLOCK,
-            self.SPRITE_GREEN_BLOCK,
-            self.SPRITE_PLAYER_ABILITY,
             self.SPRITE_MAIN_BAT_1,
             self.SPRITE_LEFT_WING_BAT_1,
             self.SPRITE_RIGHT_WING_BAT_1,
             self.SPRITE_MAIN_BAT_2,
             self.SPRITE_LEFT_WING_BAT_2,
-            self.SPRITE_RIGHT_WING_BAT_2
+            self.SPRITE_RIGHT_WING_BAT_2,
+            # --- BOSS SPRITES ---
+            self.SPRITE_BOSS,
+            self.SPRITE_RED_BLOCK,
+            self.SPRITE_BLUE_BLOCK,
+            self.SPRITE_GREEN_BLOCK,
+
         ) = self.load_sprites()
     def load_sprites(self):
         MODULE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -1041,8 +1051,40 @@ class PhoenixRenderer(JAXGameRenderer):
         # --- LOAD PROJECTILE SPRITES ---
         player_projectile = jr.loadFrame(os.path.join(MODULE_DIR, "./sprites/phoenix/projectiles/player_projectile.npy"))
         enemy_projectile = jr.loadFrame(os.path.join(MODULE_DIR, "./sprites/phoenix/projectiles/enemy_projectile.npy"))
-        # --- LOAD BATS SPRITES ---
+        # --- LOAD PHOENIX SPRITES ---
+        enemy_phoenix_1_sprite = jr.loadFrame(os.path.join(MODULE_DIR, "./sprites/phoenix/enemy_phoenix/enemy_phoenix.npy"))
+        enemy_phoenix_2_sprite = jr.loadFrame(os.path.join(MODULE_DIR, "./sprites/phoenix/enemy_phoenix/enemy_phoenix_2.npy"))
+        enemy_phoenix_attack = jr.loadFrame(os.path.join(MODULE_DIR, "./sprites/phoenix/enemy_phoenix/enemy_phoenix_attack.npy"))
+        enemy_phoenix_death_sprite_1 = jr.loadFrame(os.path.join(MODULE_DIR, "./sprites/phoenix/enemy_phoenix/enemy_phoenix_death_1.npy"))
+        enemy_phoenix_death_sprite_2 = jr.loadFrame(os.path.join(MODULE_DIR, "./sprites/phoenix/enemy_phoenix/enemy_phoenix_death_2.npy"))
+        # --- LOAD BLUE BATS SPRITES ---
         bat_blue_main_sprite = jr.loadFrame(os.path.join(MODULE_DIR, "./sprites/phoenix/enemy_bats/bats_blue/bat_blue_main.npy"))
+        bat_blue_left_wing_middle_sprite = jr.loadFrame(os.path.join(MODULE_DIR, "./sprites/phoenix/enemy_bats/bats_blue/bat_blue_left_wing_middle.npy"))
+        bat_blue_right_wing_middle_sprite = jr.loadFrame(os.path.join(MODULE_DIR, "./sprites/phoenix/enemy_bats/bats_blue/bat_blue_right_wing_middle.npy"))
+        bat_blue_left_wing_up_sprite = jr.loadFrame(os.path.join(MODULE_DIR, "./sprites/phoenix/enemy_bats/bats_blue/bat_blue_left_wing_up.npy"))
+        bat_blue_right_wing_up_sprite = jr.loadFrame(os.path.join(MODULE_DIR, "./sprites/phoenix/enemy_bats/bats_blue/bat_blue_right_wing_up.npy"))
+        bat_blue_left_wing_down_sprite = jr.loadFrame(os.path.join(MODULE_DIR, "./sprites/phoenix/enemy_bats/bats_blue/bat_blue_left_wing_down.npy"))
+        bat_blue_right_wing_down_sprite = jr.loadFrame(os.path.join(MODULE_DIR, "./sprites/phoenix/enemy_bats/bats_blue/bat_blue_right_wing_down.npy"))
+        bat_blue_left_wing_down_2_sprite = jr.loadFrame(os.path.join(MODULE_DIR, "./sprites/phoenix/enemy_bats/bats_blue/bat_blue_left_wing_down_2.npy"))
+        bat_blue_right_wing_down_2_sprite = jr.loadFrame(os.path.join(MODULE_DIR, "./sprites/phoenix/enemy_bats/bats_blue/bat_blue_right_wing_down_2.npy"))
+        bat_blue_death_1_sprite = jr.loadFrame(os.path.join(MODULE_DIR, "./sprites/phoenix/enemy_bats/bats_blue/bat_blue_death_1.npy"))
+        bat_blue_death_2_sprite = jr.loadFrame(os.path.join(MODULE_DIR, "./sprites/phoenix/enemy_bats/bats_blue/bat_blue_death_2.npy"))
+        bat_blue_death_3_sprite = jr.loadFrame(os.path.join(MODULE_DIR, "./sprites/phoenix/enemy_bats/bats_blue/bat_blue_death_3.npy"))
+        # --- LOAD RED BATS SPRITES ---
+        bat_red_main_sprite = jr.loadFrame(os.path.join(MODULE_DIR, "./sprites/phoenix/enemy_bats/bats_red/bat_red_main.npy"))
+        bat_red_left_wing_middle_sprite = jr.loadFrame(os.path.join(MODULE_DIR, "./sprites/phoenix/enemy_bats/bats_red/bat_red_left_wing_middle.npy"))
+        bat_red_right_wing_middle_sprite = jr.loadFrame(os.path.join(MODULE_DIR, "./sprites/phoenix/enemy_bats/bats_red/bat_red_right_wing_middle.npy"))
+        bat_red_left_wing_up_sprite = jr.loadFrame(os.path.join(MODULE_DIR, "./sprites/phoenix/enemy_bats/bats_red/bat_red_left_wing_up.npy"))
+        bat_red_right_wing_up_sprite = jr.loadFrame(os.path.join(MODULE_DIR, "./sprites/phoenix/enemy_bats/bats_red/bat_red_right_wing_up.npy"))
+        bat_red_left_wing_down_sprite = jr.loadFrame(os.path.join(MODULE_DIR, "./sprites/phoenix/enemy_bats/bats_red/bat_red_left_wing_down.npy"))
+        bat_red_right_wing_down_sprite = jr.loadFrame(os.path.join(MODULE_DIR, "./sprites/phoenix/enemy_bats/bats_red/bat_red_right_wing_down.npy"))
+        bat_red_left_wing_down_2_sprite = jr.loadFrame(os.path.join(MODULE_DIR, "./sprites/phoenix/enemy_bats/bats_red/bat_red_left_wing_down_2.npy"))
+        bat_red_right_wing_down_2_sprite = jr.loadFrame(os.path.join(MODULE_DIR, "./sprites/phoenix/enemy_bats/bats_red/bat_red_right_wing_down_2.npy"))
+        bat_red_death_1_sprite = jr.loadFrame(os.path.join(MODULE_DIR, "./sprites/phoenix/enemy_bats/bats_red/bat_red_death_1.npy"))
+        bat_red_death_2_sprite = jr.loadFrame(os.path.join(MODULE_DIR, "./sprites/phoenix/enemy_bats/bats_red/bat_red_death_2.npy"))
+        bat_red_death_3_sprite = jr.loadFrame(os.path.join(MODULE_DIR, "./sprites/phoenix/enemy_bats/bats_red/bat_red_death_3.npy"))
+
+        # --- OLD BAT SPRITES --- TODO: Remove
         #bat_high_wings_sprite = jr.loadFrame(os.path.join(MODULE_DIR, "./sprites/phoenix/enemy_bats/bats_high_wings.npy"))
         #bat_low_wings_sprite = jr.loadFrame(os.path.join(MODULE_DIR, "./sprites/phoenix/enemy_bats/bats_low_wings.npy"))
         #bat_2_high_wings_sprite = jr.loadFrame(os.path.join(MODULE_DIR, "./sprites/phoenix/enemy_bats/bats_2_high_wings.npy"))
@@ -1053,12 +1095,7 @@ class PhoenixRenderer(JAXGameRenderer):
         main_bat_2 = jr.loadFrame(os.path.join(MODULE_DIR, "./sprites/phoenix/enemy_bats/bats_2_main.npy"))
         left_wing_bat_2 = jr.loadFrame(os.path.join(MODULE_DIR, "./sprites/phoenix/enemy_bats/bats_2_wing_left.npy"))
         right_wing_bat_2 = jr.loadFrame(os.path.join(MODULE_DIR, "./sprites/phoenix/enemy_bats/bats_2_wing_right.npy"))
-        # --- LOAD PHOENIX SPRITES ---
-        enemy_phoenix_1_sprite = jr.loadFrame(os.path.join(MODULE_DIR, "./sprites/phoenix/enemy_phoenix/enemy_phoenix.npy"))
-        enemy_phoenix_2_sprite = jr.loadFrame(os.path.join(MODULE_DIR, "./sprites/phoenix/enemy_phoenix/enemy_phoenix_2.npy"))
-        enemy_phoenix_attack = jr.loadFrame(os.path.join(MODULE_DIR, "./sprites/phoenix/enemy_phoenix/enemy_phoenix_attack.npy"))
-        enemy_phoenix_death_sprite_1 = jr.loadFrame(os.path.join(MODULE_DIR, "./sprites/phoenix/enemy_phoenix/enemy_phoenix_death_1.npy"))
-        enemy_phoenix_death_sprite_2 = jr.loadFrame(os.path.join(MODULE_DIR, "./sprites/phoenix/enemy_phoenix/enemy_phoenix_death_2.npy"))
+
         # --- LOAD BOSS SPRITES ---
         boss_sprite = jr.loadFrame(os.path.join(MODULE_DIR, "./sprites/phoenix/boss/boss.npy"))
         boss_block_red = jr.loadFrame(os.path.join(MODULE_DIR, "./sprites/phoenix/boss/red_block.npy"))
@@ -1072,6 +1109,32 @@ class PhoenixRenderer(JAXGameRenderer):
         player_sprites_to_pad = [player_sprite, player_death_1_sprite, player_death_2_sprite, player_death_3_sprite, player_move_sprite]
         padded_player_sprites, _ = pad_to_match(player_sprites_to_pad)
         player_sprite, player_death_1_sprite, player_death_2_sprite, player_death_3_sprite, player_move_sprite = padded_player_sprites
+
+        bat_blue_wing_sprites_to_pad = [
+            bat_blue_left_wing_middle_sprite, bat_blue_right_wing_middle_sprite,
+            bat_blue_left_wing_up_sprite, bat_blue_right_wing_up_sprite,
+            bat_blue_left_wing_down_sprite, bat_blue_right_wing_down_sprite,
+            bat_blue_left_wing_down_2_sprite, bat_blue_right_wing_down_2_sprite
+        ]
+        padded_bat_blue_wings, _ = pad_to_match(bat_blue_wing_sprites_to_pad)
+        bat_blue_left_wing_middle_sprite, bat_blue_right_wing_middle_sprite, bat_blue_left_wing_up_sprite, bat_blue_right_wing_up_sprite, bat_blue_left_wing_down_sprite, bat_blue_right_wing_down_sprite, bat_blue_left_wing_down_2_sprite, bat_blue_right_wing_down_2_sprite = padded_bat_blue_wings
+
+        bat_blue_sprites_to_pad = [bat_blue_main_sprite, bat_blue_death_1_sprite, bat_blue_death_2_sprite, bat_blue_death_3_sprite]
+        padded_bat_blue_sprites, _ = pad_to_match(bat_blue_sprites_to_pad)
+        bat_blue_main_sprite, bat_blue_death_1_sprite, bat_blue_death_2_sprite, bat_blue_death_3_sprite = padded_bat_blue_sprites
+
+        bat_red_wing_sprites_to_pad = [
+            bat_red_left_wing_middle_sprite, bat_red_right_wing_middle_sprite,
+            bat_red_left_wing_up_sprite, bat_red_right_wing_up_sprite,
+            bat_red_left_wing_down_sprite, bat_red_right_wing_down_sprite,
+            bat_red_left_wing_down_2_sprite, bat_red_right_wing_down_2_sprite
+        ]
+        padded_bat_red_wings, _ = pad_to_match(bat_red_wing_sprites_to_pad)
+        bat_red_left_wing_middle_sprite, bat_red_right_wing_middle_sprite, bat_red_left_wing_up_sprite, bat_red_right_wing_up_sprite, bat_red_left_wing_down_sprite, bat_red_right_wing_down_sprite, bat_red_left_wing_down_2_sprite, bat_red_right_wing_down_2_sprite = padded_bat_red_wings
+
+        bat_red_wing_sprites_to_pad = [bat_red_main_sprite, bat_red_death_1_sprite, bat_red_death_2_sprite, bat_red_death_3_sprite]
+        padded_bat_red_sprites, _ = pad_to_match(bat_red_wing_sprites_to_pad)
+        bat_red_main_sprite, bat_red_death_1_sprite, bat_red_death_2_sprite, bat_red_death_3_sprite = padded_bat_red_sprites
 
         # --- PLAYER SPRITES ---
         SPRITE_PLAYER = jnp.expand_dims(player_sprite, axis=0)
@@ -1095,7 +1158,34 @@ class PhoenixRenderer(JAXGameRenderer):
         SPRITE_PHOENIX_ATTACK = jnp.expand_dims(enemy_phoenix_attack, axis=0)
         SPRITE_PHOENIX_DEATH_1 = jnp.expand_dims(enemy_phoenix_death_sprite_1, axis=0)
         SPRITE_PHOENIX_DEATH_2 = jnp.expand_dims(enemy_phoenix_death_sprite_2, axis=0)
-        # --- BATS SPRITES ---
+        # --- BAT BLUE SPRITES ---
+        SPRITE_BAT_BLUE_MAIN = jnp.expand_dims(bat_blue_main_sprite, axis=0)
+        SPRITE_BAT_BLUE_LEFT_WING_MIDDLE = jnp.expand_dims(bat_blue_left_wing_middle_sprite, axis=0)
+        SPRITE_BAT_BLUE_RIGHT_WING_MIDDLE = jnp.expand_dims(bat_blue_right_wing_middle_sprite, axis=0)
+        SPRITE_BAT_BLUE_LEFT_WING_UP = jnp.expand_dims(bat_blue_left_wing_up_sprite, axis=0)
+        SPRITE_BAT_BLUE_RIGHT_WING_UP = jnp.expand_dims(bat_blue_right_wing_up_sprite, axis=0)
+        SPRITE_BAT_BLUE_LEFT_WING_DOWN = jnp.expand_dims(bat_blue_left_wing_down_sprite, axis=0)
+        SPRITE_BAT_BLUE_RIGHT_WING_DOWN = jnp.expand_dims(bat_blue_right_wing_down_sprite, axis=0)
+        SPRITE_BAT_BLUE_LEFT_WING_DOWN_2 = jnp.expand_dims(bat_blue_left_wing_down_2_sprite, axis=0)
+        SPRITE_BAT_BLUE_RIGHT_WING_DOWN_2 = jnp.expand_dims(bat_blue_right_wing_down_2_sprite, axis=0)
+        SPRITE_BAT_BLUE_DEATH_1 = jnp.expand_dims(bat_blue_death_1_sprite, axis=0)
+        SPRITE_BAT_BLUE_DEATH_2 = jnp.expand_dims(bat_blue_death_2_sprite, axis=0)
+        SPRITE_BAT_BLUE_DEATH_3 = jnp.expand_dims(bat_blue_death_3_sprite, axis=0)
+        # --- BAT RED SPRITES ---
+        SPRITE_BAT_RED_MAIN = jnp.expand_dims(bat_red_main_sprite, axis=0)
+        SPRITE_BAT_RED_LEFT_WING_MIDDLE = jnp.expand_dims(bat_red_left_wing_middle_sprite, axis=0)
+        SPRITE_BAT_RED_RIGHT_WING_MIDDLE = jnp.expand_dims(bat_red_right_wing_middle_sprite, axis=0)
+        SPRITE_BAT_RED_LEFT_WING_UP = jnp.expand_dims(bat_red_left_wing_up_sprite, axis=0)
+        SPRITE_BAT_RED_RIGHT_WING_UP = jnp.expand_dims(bat_red_right_wing_up_sprite, axis=0)
+        SPRITE_BAT_RED_LEFT_WING_DOWN = jnp.expand_dims(bat_red_left_wing_down_sprite, axis=0)
+        SPRITE_BAT_RED_RIGHT_WING_DOWN = jnp.expand_dims(bat_red_right_wing_down_sprite, axis=0)
+        SPRITE_BAT_RED_LEFT_WING_DOWN_2 = jnp.expand_dims(bat_red_left_wing_down_2_sprite, axis=0)
+        SPRITE_BAT_RED_RIGHT_WING_DOWN_2 = jnp.expand_dims(bat_red_right_wing_down_2_sprite, axis=0)
+        SPRITE_BAT_RED_DEATH_1 = jnp.expand_dims(bat_red_death_1_sprite, axis=0)
+        SPRITE_BAT_RED_DEATH_2 = jnp.expand_dims(bat_red_death_2_sprite, axis=0)
+        SPRITE_BAT_RED_DEATH_3 = jnp.expand_dims(bat_red_death_3_sprite, axis=0)
+
+        # --- OLD BATS SPRITES ---
         #SPRITE_BAT_HIGH_WING = jnp.expand_dims(bat_high_wings_sprite, axis=0)
         #SPRITE_BAT_LOW_WING = jnp.expand_dims(bat_low_wings_sprite, axis=0)
         #SPRITE_BAT_2_HIGH_WING = jnp.expand_dims(bat_2_high_wings_sprite, axis=0)
@@ -1113,37 +1203,47 @@ class PhoenixRenderer(JAXGameRenderer):
         SPRITE_GREEN_BLOCK = boss_block_green
 
         return (
+            # --- FIELD SPRITES ---
+            BG_SPRITE,
+            SPRITE_FLOOR,
+            # --- UI SPRITES ---
+            DIGITS,
+            LIFE_INDICATOR,
+            # --- PLAYER SPRITES ---
             SPRITE_PLAYER,
             SPRITE_PLAYER_DEATH_1,
             SPRITE_PLAYER_DEATH_2,
             SPRITE_PLAYER_DEATH_3,
             SPRITE_PLAYER_MOVE,
-            BG_SPRITE,
+            SPRITE_PLAYER_ABILITY,
+            # --- PROJECTILE SPRITES ---
             SPRITE_PLAYER_PROJECTILE,
-            SPRITE_FLOOR,
+            SPRITE_ENEMY_PROJECTILE,
+            # --- PHOENIX SPRITES ---
             SPRITE_PHOENIX_1,
             SPRITE_PHOENIX_2,
             SPRITE_PHOENIX_ATTACK,
             SPRITE_PHOENIX_DEATH_1,
             SPRITE_PHOENIX_DEATH_2,
+            # --- BAT BLUE SPRITES ---
+            # --- BAT RED SPRITES ---
+            # --- OLD BAT SPRITES --- # TODO remove
             #SPRITE_BAT_HIGH_WING,
             #SPRITE_BAT_LOW_WING,
             #SPRITE_BAT_2_HIGH_WING,
             #SPRITE_BAT_2_LOW_WING,
-            SPRITE_BOSS,
-            SPRITE_ENEMY_PROJECTILE,
-            DIGITS,
-            LIFE_INDICATOR,
-            SPRITE_RED_BLOCK,
-            SPRITE_BLUE_BLOCK,
-            SPRITE_GREEN_BLOCK,
-            SPRITE_PLAYER_ABILITY,
             SPRITE_MAIN_BAT_1,
             SPRITE_LEFT_WING_BAT_1,
             SPRITE_RIGHT_WING_BAT_1,
             SPRITE_MAIN_BAT_2,
             SPRITE_LEFT_WING_BAT_2,
             SPRITE_RIGHT_WING_BAT_2,
+            # --- BOSS SPRITES ---
+            SPRITE_BOSS,
+            SPRITE_RED_BLOCK,
+            SPRITE_BLUE_BLOCK,
+            SPRITE_GREEN_BLOCK,
+
         )
 
     # load sprites on module layer
