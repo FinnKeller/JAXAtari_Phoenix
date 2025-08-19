@@ -1017,10 +1017,6 @@ class PhoenixRenderer(JAXGameRenderer):
             # --- BAT BLUE SPRITES ---
             # --- BAT RED SPRITES ---
             # --- OLD BAT SPRITES -- TODO: remove
-            #self.SPRITE_BAT_HIGH_WING,
-            #self.SPRITE_BAT_LOW_WING,
-            #self.SPRITE_BAT_2_HIGH_WING,
-            #self.SPRITE_BAT_2_LOW_WING,
             self.SPRITE_MAIN_BAT_1,
             self.SPRITE_LEFT_WING_BAT_1,
             self.SPRITE_RIGHT_WING_BAT_1,
@@ -1085,10 +1081,6 @@ class PhoenixRenderer(JAXGameRenderer):
         bat_red_death_3_sprite = jr.loadFrame(os.path.join(MODULE_DIR, "./sprites/phoenix/enemy_bats/bats_red/bat_red_death_3.npy"))
 
         # --- OLD BAT SPRITES --- TODO: Remove
-        #bat_high_wings_sprite = jr.loadFrame(os.path.join(MODULE_DIR, "./sprites/phoenix/enemy_bats/bats_high_wings.npy"))
-        #bat_low_wings_sprite = jr.loadFrame(os.path.join(MODULE_DIR, "./sprites/phoenix/enemy_bats/bats_low_wings.npy"))
-        #bat_2_high_wings_sprite = jr.loadFrame(os.path.join(MODULE_DIR, "./sprites/phoenix/enemy_bats/bats_2_high_wings.npy"))
-        #bat_2_low_wings_sprite = jr.loadFrame(os.path.join(MODULE_DIR, "./sprites/phoenix/enemy_bats/bats_2_low_wings.npy"))
         main_bat_1 = jr.loadFrame(os.path.join(MODULE_DIR, "./sprites/phoenix/enemy_bats/bats_1_main.npy"))
         left_wing_bat_1 = jr.loadFrame(os.path.join(MODULE_DIR, "./sprites/phoenix/enemy_bats/bats_1_wing_left.npy"))
         right_wing_bat_1 = jr.loadFrame(os.path.join(MODULE_DIR, "./sprites/phoenix/enemy_bats/bats_1_wing_right.npy"))
@@ -1186,10 +1178,6 @@ class PhoenixRenderer(JAXGameRenderer):
         SPRITE_BAT_RED_DEATH_3 = jnp.expand_dims(bat_red_death_3_sprite, axis=0)
 
         # --- OLD BATS SPRITES ---
-        #SPRITE_BAT_HIGH_WING = jnp.expand_dims(bat_high_wings_sprite, axis=0)
-        #SPRITE_BAT_LOW_WING = jnp.expand_dims(bat_low_wings_sprite, axis=0)
-        #SPRITE_BAT_2_HIGH_WING = jnp.expand_dims(bat_2_high_wings_sprite, axis=0)
-        #SPRITE_BAT_2_LOW_WING = jnp.expand_dims(bat_2_low_wings_sprite, axis=0)
         SPRITE_MAIN_BAT_1 = jnp.expand_dims(main_bat_1, axis=0)
         SPRITE_LEFT_WING_BAT_1 = jnp.expand_dims(left_wing_bat_1, axis=0)
         SPRITE_RIGHT_WING_BAT_1 = jnp.expand_dims(right_wing_bat_1, axis=0)
@@ -1228,10 +1216,6 @@ class PhoenixRenderer(JAXGameRenderer):
             # --- BAT BLUE SPRITES ---
             # --- BAT RED SPRITES ---
             # --- OLD BAT SPRITES --- # TODO remove
-            #SPRITE_BAT_HIGH_WING,
-            #SPRITE_BAT_LOW_WING,
-            #SPRITE_BAT_2_HIGH_WING,
-            #SPRITE_BAT_2_LOW_WING,
             SPRITE_MAIN_BAT_1,
             SPRITE_LEFT_WING_BAT_1,
             SPRITE_RIGHT_WING_BAT_1,
