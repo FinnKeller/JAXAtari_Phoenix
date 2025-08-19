@@ -842,14 +842,14 @@ class JaxPhoenix(JaxEnvironment[PhoenixState, PhoenixOberservation, PhoenixInfo,
         all_enemies_cleared = jnp.all(enemies_y >= self.consts.HEIGHT + 10)
         start_transition = all_enemies_cleared & (state.level_transition_timer == 0)
 
-        level_transition_timer = jnp.where(
+        new_level_transition_timer = jnp.where(
             start_transition,
             self.consts.LEVEL_TRANSITION_DURATION,
             state.level_transition_timer
         )
-        level_transition_timer = jnp.where(level_transition_timer > 0, level_transition_timer - 1, 0)
+        new_level_transition_timer = jnp.where(new_level_transition_timer > 0, new_level_transition_timer - 1, 0)
 
-        transition_ended = (state.level_transition_timer > 0) & (level_transition_timer == 0)
+        transition_ended = (state.level_transition_timer > 0) & (new_level_transition_timer == 0)
 
         # 2) Nächstes Level vormerken und erst bei Timerende aktivieren
         pending_next_level = (state.level % 5) + 1
@@ -866,8 +866,8 @@ class JaxPhoenix(JaxEnvironment[PhoenixState, PhoenixOberservation, PhoenixInfo,
         # 4) Gegner-Respawn nach Spieler-Respawn nur, wenn kein Level-Übergang läuft
         enemy_respawn_x = jax.lax.switch((level - 1) % 5, self.consts.ENEMY_POSITIONS_X_LIST).astype(jnp.float32)
         enemy_respawn_y = jax.lax.switch((level - 1) % 5, self.consts.ENEMY_POSITIONS_Y_LIST).astype(jnp.float32)
-        enemies_x = jnp.where(respawn_ended & (level_transition_timer == 0), enemy_respawn_x, enemies_x)
-        enemies_y = jnp.where(respawn_ended & (level_transition_timer == 0), enemy_respawn_y, enemies_y)
+        enemies_x = jnp.where(respawn_ended & (new_level_transition_timer == 0), enemy_respawn_x, enemies_x)
+        enemies_y = jnp.where(respawn_ended & (new_level_transition_timer == 0), enemy_respawn_y, enemies_y)
 
 
 
@@ -934,7 +934,7 @@ class JaxPhoenix(JaxEnvironment[PhoenixState, PhoenixOberservation, PhoenixInfo,
         new_player_dying = jnp.where(player_death_done, False, new_player_dying).astype(jnp.bool_)
         new_player_death_timer = jnp.where(player_death_done, 0, dec_player_timer).astype(jnp.int32)
 
-        formation_reset = transition_ended | (respawn_ended & (level_transition_timer == 0))
+        formation_reset = transition_ended | (respawn_ended & (new_level_transition_timer == 0))
         new_phoenix_do_attack = jnp.where(formation_reset, jnp.full((8,), False), state.phoenix_do_attack)
         new_phoenix_returning = jnp.where(formation_reset, jnp.full((8,), False), state.phoenix_returning)
         new_phoenix_attack_target = jnp.where(formation_reset, jnp.full((8,), -1.0), state.phoenix_attack_target_y)
@@ -974,7 +974,7 @@ class JaxPhoenix(JaxEnvironment[PhoenixState, PhoenixOberservation, PhoenixInfo,
             player_dying=new_player_dying,
             player_death_timer=new_player_death_timer,
             player_moving=new_player_moving,
-            level_transition_timer=level_transition_timer,
+            level_transition_timer=new_level_transition_timer,
 
         )
         observation = self._get_observation(return_state)
@@ -1028,40 +1028,40 @@ class PhoenixRenderer(JAXGameRenderer):
         MODULE_DIR = os.path.dirname(os.path.abspath(__file__))
 
         # Load individual sprite frames
-        player_sprite = jr.loadFrame(os.path.join(MODULE_DIR, "./sprites/phoenix/player.npy"))
-        player_move_sprite = jr.loadFrame(os.path.join(MODULE_DIR, "./sprites/phoenix/player_move.npy"))
-        player_death_1_sprite = jr.loadFrame(os.path.join(MODULE_DIR, "./sprites/phoenix/player_death_1.npy"))
-        player_death_2_sprite = jr.loadFrame(os.path.join(MODULE_DIR, "./sprites/phoenix/player_death_2.npy")) # TODO Testen ob konkatinieren der zusammengehören Sprites zu einem funktioniert
-        player_death_3_sprite = jr.loadFrame(os.path.join(MODULE_DIR, "./sprites/phoenix/player_death_3.npy"))
+        player_sprite = jr.loadFrame(os.path.join(MODULE_DIR, "./sprites/phoenix/player/player.npy"))
+        player_move_sprite = jr.loadFrame(os.path.join(MODULE_DIR, "./sprites/phoenix/player/player_move.npy"))
+        player_death_1_sprite = jr.loadFrame(os.path.join(MODULE_DIR, "./sprites/phoenix/player/player_death_1.npy"))
+        player_death_2_sprite = jr.loadFrame(os.path.join(MODULE_DIR, "./sprites/phoenix/player/player_death_2.npy")) # TODO Testen ob konkatinieren der zusammengehören Sprites zu einem funktioniert
+        player_death_3_sprite = jr.loadFrame(os.path.join(MODULE_DIR, "./sprites/phoenix/player/player_death_3.npy"))
         bg_sprites = jr.loadFrame(os.path.join(MODULE_DIR, "./sprites/pong/background.npy"))
         floor_sprite = jr.loadFrame(os.path.join(MODULE_DIR, "./sprites/phoenix/floor.npy"))
-        player_projectile = jr.loadFrame(os.path.join(MODULE_DIR, "./sprites/phoenix/player_projectile.npy"))
-        bat_high_wings_sprite = jr.loadFrame(os.path.join(MODULE_DIR, "./sprites/phoenix/bats/bats_high_wings.npy"))
-        bat_low_wings_sprite = jr.loadFrame(os.path.join(MODULE_DIR, "./sprites/phoenix/bats/bats_low_wings.npy"))
-        bat_2_high_wings_sprite = jr.loadFrame(os.path.join(MODULE_DIR, "./sprites/phoenix/bats/bats_2_high_wings.npy"))
-        bat_2_low_wings_sprite = jr.loadFrame(os.path.join(MODULE_DIR, "./sprites/phoenix/bats/bats_2_low_wings.npy"))
-        enemy_phoenix_1_sprite = jr.loadFrame(os.path.join(MODULE_DIR, "./sprites/phoenix/enemy_phoenix.npy"))
-        enemy_phoenix_2_sprite = jr.loadFrame(os.path.join(MODULE_DIR, "./sprites/phoenix/enemy_phoenix_2.npy"))
-        enemy_phoenix_attack = jr.loadFrame(os.path.join(MODULE_DIR, "./sprites/phoenix/enemy_phoenix_attack.npy"))
-        enemy_phoenix_death_1_sprite = jr.loadFrame(os.path.join(MODULE_DIR, "./sprites/phoenix/enemy_phoenix_death_1.npy"))
-        enemy_phoenix_death_2_sprite = jr.loadFrame(os.path.join(MODULE_DIR, "./sprites/phoenix/enemy_phoenix_death_2.npy"))
-        boss_sprite = jr.loadFrame(os.path.join(MODULE_DIR, "./sprites/phoenix/boss.npy"))
-        enemy_projectile = jr.loadFrame(os.path.join(MODULE_DIR, "./sprites/phoenix/enemy_projectile.npy"))
-        boss_block_red = jr.loadFrame(os.path.join(MODULE_DIR, "./sprites/phoenix/red_block.npy"))
-        boss_block_blue = jr.loadFrame(os.path.join(MODULE_DIR, "./sprites/phoenix/blue_block.npy"))
-        boss_block_green = jr.loadFrame(os.path.join(MODULE_DIR, "./sprites/phoenix/green_block.npy"))
+        player_projectile = jr.loadFrame(os.path.join(MODULE_DIR, "./sprites/phoenix/projectiles/player_projectile.npy"))
+        bat_high_wings_sprite = jr.loadFrame(os.path.join(MODULE_DIR, "./sprites/phoenix/enemy_bats/bats_high_wings.npy"))
+        bat_low_wings_sprite = jr.loadFrame(os.path.join(MODULE_DIR, "./sprites/phoenix/enemy_bats/bats_low_wings.npy"))
+        bat_2_high_wings_sprite = jr.loadFrame(os.path.join(MODULE_DIR, "./sprites/phoenix/enemy_bats/bats_2_high_wings.npy"))
+        bat_2_low_wings_sprite = jr.loadFrame(os.path.join(MODULE_DIR, "./sprites/phoenix/enemy_bats/bats_2_low_wings.npy"))
+        enemy_phoenix_1_sprite = jr.loadFrame(os.path.join(MODULE_DIR, "./sprites/phoenix/enemy_phoenix/enemy_phoenix.npy"))
+        enemy_phoenix_2_sprite = jr.loadFrame(os.path.join(MODULE_DIR, "./sprites/phoenix/enemy_phoenix/enemy_phoenix_2.npy"))
+        enemy_phoenix_attack = jr.loadFrame(os.path.join(MODULE_DIR, "./sprites/phoenix/enemy_phoenix/enemy_phoenix_attack.npy"))
+        enemy_phoenix_death_sprite_1 = jr.loadFrame(os.path.join(MODULE_DIR, "./sprites/phoenix/enemy_phoenix/enemy_phoenix_death_1.npy"))
+        enemy_phoenix_death_sprite_2 = jr.loadFrame(os.path.join(MODULE_DIR, "./sprites/phoenix/enemy_phoenix/enemy_phoenix_death_2.npy"))
+        boss_sprite = jr.loadFrame(os.path.join(MODULE_DIR, "./sprites/phoenix/boss/boss.npy"))
+        enemy_projectile = jr.loadFrame(os.path.join(MODULE_DIR, "./sprites/phoenix/projectiles/enemy_projectile.npy"))
+        boss_block_red = jr.loadFrame(os.path.join(MODULE_DIR, "./sprites/phoenix/boss/red_block.npy"))
+        boss_block_blue = jr.loadFrame(os.path.join(MODULE_DIR, "./sprites/phoenix/boss/blue_block.npy"))
+        boss_block_green = jr.loadFrame(os.path.join(MODULE_DIR, "./sprites/phoenix/boss/green_block.npy"))
         ability = jr.loadFrame(os.path.join(MODULE_DIR, "./sprites/phoenix/ability.npy"))
-        main_bat_1 = jr.loadFrame(os.path.join(MODULE_DIR, "./sprites/phoenix/bats/bats_1_main.npy"))
-        left_wing_bat_1 = jr.loadFrame(os.path.join(MODULE_DIR, "./sprites/phoenix/bats/bats_1_wing_left.npy"))
-        right_wing_bat_1 = jr.loadFrame(os.path.join(MODULE_DIR, "./sprites/phoenix/bats/bats_1_wing_right.npy"))
-        main_bat_2 = jr.loadFrame(os.path.join(MODULE_DIR, "./sprites/phoenix/bats/bats_2_main.npy"))
-        left_wing_bat_2 = jr.loadFrame(os.path.join(MODULE_DIR, "./sprites/phoenix/bats/bats_2_wing_left.npy"))
-        right_wing_bat_2 = jr.loadFrame(os.path.join(MODULE_DIR, "./sprites/phoenix/bats/bats_2_wing_right.npy"))
+        main_bat_1 = jr.loadFrame(os.path.join(MODULE_DIR, "./sprites/phoenix/enemy_bats/bats_1_main.npy"))
+        left_wing_bat_1 = jr.loadFrame(os.path.join(MODULE_DIR, "./sprites/phoenix/enemy_bats/bats_1_wing_left.npy"))
+        right_wing_bat_1 = jr.loadFrame(os.path.join(MODULE_DIR, "./sprites/phoenix/enemy_bats/bats_1_wing_right.npy"))
+        main_bat_2 = jr.loadFrame(os.path.join(MODULE_DIR, "./sprites/phoenix/enemy_bats/bats_2_main.npy"))
+        left_wing_bat_2 = jr.loadFrame(os.path.join(MODULE_DIR, "./sprites/phoenix/enemy_bats/bats_2_wing_left.npy"))
+        right_wing_bat_2 = jr.loadFrame(os.path.join(MODULE_DIR, "./sprites/phoenix/enemy_bats/bats_2_wing_right.npy"))
         SPRITE_ABILITY = ability
 
-        phoenix_sprites_to_pad = [enemy_phoenix_1_sprite, enemy_phoenix_2_sprite, enemy_phoenix_attack, enemy_phoenix_death_1_sprite, enemy_phoenix_death_2_sprite]
+        phoenix_sprites_to_pad = [enemy_phoenix_1_sprite, enemy_phoenix_2_sprite, enemy_phoenix_attack, enemy_phoenix_death_sprite_1, enemy_phoenix_death_sprite_2]
         padded_phoenix_sprites, _ = pad_to_match(phoenix_sprites_to_pad)
-        enemy_phoenix_1_sprite, enemy_phoenix_2_sprite, enemy_phoenix_attack, enemy_phoenix_death_1_sprite, enemy_phoenix_death_2_sprite = padded_phoenix_sprites
+        enemy_phoenix_1_sprite, enemy_phoenix_2_sprite, enemy_phoenix_attack, enemy_phoenix_death_sprite_1, enemy_phoenix_death_sprite_2 = padded_phoenix_sprites
 
         player_sprites_to_pad = [player_sprite, player_death_1_sprite, player_death_2_sprite, player_death_3_sprite, player_move_sprite]
         padded_player_sprites, _ = pad_to_match(player_sprites_to_pad)
@@ -1079,8 +1079,8 @@ class PhoenixRenderer(JAXGameRenderer):
         SPRITE_PHOENIX_1 = jnp.expand_dims(enemy_phoenix_1_sprite, axis=0)
         SPRITE_PHOENIX_2 = jnp.expand_dims(enemy_phoenix_2_sprite, axis=0)
         SPRITE_PHOENIX_ATTACK = jnp.expand_dims(enemy_phoenix_attack, axis=0)
-        SPRITE_PHOENIX_DEATH_1 = jnp.expand_dims(enemy_phoenix_death_1_sprite, axis=0)
-        SPRITE_PHOENIX_DEATH_2 = jnp.expand_dims(enemy_phoenix_death_2_sprite, axis=0)
+        SPRITE_PHOENIX_DEATH_1 = jnp.expand_dims(enemy_phoenix_death_sprite_1, axis=0)
+        SPRITE_PHOENIX_DEATH_2 = jnp.expand_dims(enemy_phoenix_death_sprite_2, axis=0)
         SPRITE_BAT_HIGH_WING = jnp.expand_dims(bat_high_wings_sprite, axis=0)
         SPRITE_BAT_LOW_WING = jnp.expand_dims(bat_low_wings_sprite, axis=0)
         SPRITE_BAT_2_HIGH_WING = jnp.expand_dims(bat_2_high_wings_sprite, axis=0)
