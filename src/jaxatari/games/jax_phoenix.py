@@ -48,6 +48,7 @@ class PhoenixConstants(NamedTuple):
     LEVEL_TRANSITION_DURATION: int = 240 # ca. 4 Sekunden bei 60 FPS
     ENEMY_ANIMATION_SPEED: int = 30  # ca. 0,5 Sekunden bei 60 FPS
     PLAYER_ANIMATION_SPEED: int = 6  # ca. 0,1 Sekunden bei 60 FPS
+    PLAYER_LIVES: int = 5 # Anzahl der Leben
     ENEMY_POSITIONS_X_LIST = [
         lambda: jnp.array(
             [123 - 160 // 2, 123 - 160 // 2, 136 - 160 // 2, 136 - 160 // 2, 160 - 160 // 2, 160 - 160 // 2,
@@ -203,7 +204,6 @@ class PhoenixState(NamedTuple):
     player_respawn_timer: chex.Array = 0 # Invincibility timer
     level: chex.Array = jnp.array(1)  # Level, starts at 1
     level_transition_timer: chex.Array = jnp.array(0)  # Timer for level transition
-
 
 
 class PhoenixOberservation(NamedTuple):
@@ -672,7 +672,7 @@ class JaxPhoenix(JaxEnvironment[PhoenixState, PhoenixOberservation, PhoenixInfo,
             enemy_projectile_y=jnp.full((8,), -1),
             projectile_x=jnp.array(-1),  # Standardwert: kein Projektil
             score = jnp.array(0), # Standardwert: Score=0
-            lives=jnp.array(5), # Standardwert: 5 Leben
+            lives=jnp.array(self.consts.PLAYER_LIVES), # Standardwert: 5 Leben
             player_respawn_timer=jnp.array(5),
             level=jnp.array(1),
             level_transition_timer=jnp.array(0),  # Timer for level transition, starts at 0
@@ -1005,10 +1005,10 @@ class PhoenixRenderer(JAXGameRenderer):
             self.SPRITE_PHOENIX_ATTACK,
             self.SPRITE_PHOENIX_DEATH_1,
             self.SPRITE_PHOENIX_DEATH_2,
-            self.SPRITE_BAT_HIGH_WING,
-            self.SPRITE_BAT_LOW_WING,
-            self.SPRITE_BAT_2_HIGH_WING,
-            self.SPRITE_BAT_2_LOW_WING,
+            #self.SPRITE_BAT_HIGH_WING,
+            #self.SPRITE_BAT_LOW_WING,
+            #self.SPRITE_BAT_2_HIGH_WING,
+            #self.SPRITE_BAT_2_LOW_WING,
             self.SPRITE_BOSS,
             self.SPRITE_ENEMY_PROJECTILE,
             self.DIGITS,
@@ -1042,10 +1042,11 @@ class PhoenixRenderer(JAXGameRenderer):
         player_projectile = jr.loadFrame(os.path.join(MODULE_DIR, "./sprites/phoenix/projectiles/player_projectile.npy"))
         enemy_projectile = jr.loadFrame(os.path.join(MODULE_DIR, "./sprites/phoenix/projectiles/enemy_projectile.npy"))
         # --- LOAD BATS SPRITES ---
-        bat_high_wings_sprite = jr.loadFrame(os.path.join(MODULE_DIR, "./sprites/phoenix/enemy_bats/bats_high_wings.npy"))
-        bat_low_wings_sprite = jr.loadFrame(os.path.join(MODULE_DIR, "./sprites/phoenix/enemy_bats/bats_low_wings.npy"))
-        bat_2_high_wings_sprite = jr.loadFrame(os.path.join(MODULE_DIR, "./sprites/phoenix/enemy_bats/bats_2_high_wings.npy"))
-        bat_2_low_wings_sprite = jr.loadFrame(os.path.join(MODULE_DIR, "./sprites/phoenix/enemy_bats/bats_2_low_wings.npy"))
+        bat_blue_main_sprite = jr.loadFrame(os.path.join(MODULE_DIR, "./sprites/phoenix/enemy_bats/bat_blue_main.npy"))
+        #bat_high_wings_sprite = jr.loadFrame(os.path.join(MODULE_DIR, "./sprites/phoenix/enemy_bats/bats_high_wings.npy"))
+        #bat_low_wings_sprite = jr.loadFrame(os.path.join(MODULE_DIR, "./sprites/phoenix/enemy_bats/bats_low_wings.npy"))
+        #bat_2_high_wings_sprite = jr.loadFrame(os.path.join(MODULE_DIR, "./sprites/phoenix/enemy_bats/bats_2_high_wings.npy"))
+        #bat_2_low_wings_sprite = jr.loadFrame(os.path.join(MODULE_DIR, "./sprites/phoenix/enemy_bats/bats_2_low_wings.npy"))
         main_bat_1 = jr.loadFrame(os.path.join(MODULE_DIR, "./sprites/phoenix/enemy_bats/bats_1_main.npy"))
         left_wing_bat_1 = jr.loadFrame(os.path.join(MODULE_DIR, "./sprites/phoenix/enemy_bats/bats_1_wing_left.npy"))
         right_wing_bat_1 = jr.loadFrame(os.path.join(MODULE_DIR, "./sprites/phoenix/enemy_bats/bats_1_wing_right.npy"))
@@ -1095,10 +1096,10 @@ class PhoenixRenderer(JAXGameRenderer):
         SPRITE_PHOENIX_DEATH_1 = jnp.expand_dims(enemy_phoenix_death_sprite_1, axis=0)
         SPRITE_PHOENIX_DEATH_2 = jnp.expand_dims(enemy_phoenix_death_sprite_2, axis=0)
         # --- BATS SPRITES ---
-        SPRITE_BAT_HIGH_WING = jnp.expand_dims(bat_high_wings_sprite, axis=0)
-        SPRITE_BAT_LOW_WING = jnp.expand_dims(bat_low_wings_sprite, axis=0)
-        SPRITE_BAT_2_HIGH_WING = jnp.expand_dims(bat_2_high_wings_sprite, axis=0)
-        SPRITE_BAT_2_LOW_WING = jnp.expand_dims(bat_2_low_wings_sprite, axis=0)
+        #SPRITE_BAT_HIGH_WING = jnp.expand_dims(bat_high_wings_sprite, axis=0)
+        #SPRITE_BAT_LOW_WING = jnp.expand_dims(bat_low_wings_sprite, axis=0)
+        #SPRITE_BAT_2_HIGH_WING = jnp.expand_dims(bat_2_high_wings_sprite, axis=0)
+        #SPRITE_BAT_2_LOW_WING = jnp.expand_dims(bat_2_low_wings_sprite, axis=0)
         SPRITE_MAIN_BAT_1 = jnp.expand_dims(main_bat_1, axis=0)
         SPRITE_LEFT_WING_BAT_1 = jnp.expand_dims(left_wing_bat_1, axis=0)
         SPRITE_RIGHT_WING_BAT_1 = jnp.expand_dims(right_wing_bat_1, axis=0)
@@ -1125,10 +1126,10 @@ class PhoenixRenderer(JAXGameRenderer):
             SPRITE_PHOENIX_ATTACK,
             SPRITE_PHOENIX_DEATH_1,
             SPRITE_PHOENIX_DEATH_2,
-            SPRITE_BAT_HIGH_WING,
-            SPRITE_BAT_LOW_WING,
-            SPRITE_BAT_2_HIGH_WING,
-            SPRITE_BAT_2_LOW_WING,
+            #SPRITE_BAT_HIGH_WING,
+            #SPRITE_BAT_LOW_WING,
+            #SPRITE_BAT_2_HIGH_WING,
+            #SPRITE_BAT_2_LOW_WING,
             SPRITE_BOSS,
             SPRITE_ENEMY_PROJECTILE,
             DIGITS,
@@ -1179,10 +1180,10 @@ class PhoenixRenderer(JAXGameRenderer):
         frame_phoenix_death_2 = jr.get_sprite_frame(self.SPRITE_PHOENIX_DEATH_2, 0)
 
         # Render enemy bats
-        frame_bat_high_wings = jr.get_sprite_frame(self.SPRITE_BAT_HIGH_WING, 0)
-        frame_bat_low_wings = jr.get_sprite_frame(self.SPRITE_BAT_LOW_WING, 0)
-        frame_bat_2_high_wings = jr.get_sprite_frame(self.SPRITE_BAT_2_HIGH_WING, 0)
-        frame_bat_2_low_wings = jr.get_sprite_frame(self.SPRITE_BAT_2_LOW_WING, 0)
+        #frame_bat_high_wings = jr.get_sprite_frame(self.SPRITE_BAT_HIGH_WING, 0)
+        #frame_bat_low_wings = jr.get_sprite_frame(self.SPRITE_BAT_LOW_WING, 0)
+        #frame_bat_2_high_wings = jr.get_sprite_frame(self.SPRITE_BAT_2_HIGH_WING, 0)
+        #frame_bat_2_low_wings = jr.get_sprite_frame(self.SPRITE_BAT_2_LOW_WING, 0)
         frame_main_bat = jr.get_sprite_frame(self.SPRITE_MAIN_BAT_1, 0)
         frame_left_wing_bat_1 = jr.get_sprite_frame(self.SPRITE_LEFT_WING_BAT_1, 0)
         frame_right_wing_bat_1 = jr.get_sprite_frame(self.SPRITE_RIGHT_WING_BAT_1, 0)
