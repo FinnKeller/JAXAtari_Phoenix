@@ -172,14 +172,17 @@ class PhoenixState(NamedTuple):
     step_counter: chex.Array
     enemies_x: chex.Array # Gegner X-Positionen
     enemies_y: chex.Array
-    enemy_direction: chex.Array
-    vertical_direction: chex.Array
+    horizontal_direction_enemies: chex.Array
+    vertical_direction_enemies: chex.Array
     blue_blocks: chex.Array
     red_blocks: chex.Array
     green_blocks: chex.Array
     invincibility: chex.Array
     invincibility_timer: chex.Array
+
     bat_wings: chex.Array
+    bat_dying: chex.Array # Bat dying status, (8,), bool
+    bat_death_timer: chex.Array # Timer for Bat death animation, (8,), int
 
     phoenix_do_attack: chex.Array  # Phoenix attack state
     phoenix_attack_target_y: chex.Array  # Target Y position for Phoenix attack
@@ -439,11 +442,11 @@ class JaxPhoenix(JaxEnvironment[PhoenixState, PhoenixOberservation, PhoenixInfo,
         )
         new_direction = jax.lax.cond(
             at_left_boundary,
-            lambda: jnp.full_like(state.enemy_direction, 1.0, dtype=jnp.float32),
+            lambda: jnp.full_like(state.horizontal_direction_enemies, 1.0, dtype=jnp.float32),
             lambda: jax.lax.cond(
                 at_right_boundary,
-                lambda: jnp.full_like(state.enemy_direction, -1.0, dtype=jnp.float32),
-                lambda: state.enemy_direction.astype(jnp.float32),
+                lambda: jnp.full_like(state.horizontal_direction_enemies, -1.0, dtype=jnp.float32),
+                lambda: state.horizontal_direction_enemies.astype(jnp.float32),
             ),
         )
 
@@ -463,9 +466,9 @@ class JaxPhoenix(JaxEnvironment[PhoenixState, PhoenixOberservation, PhoenixInfo,
 
         state = state._replace(
             enemies_x=new_enemies_x.astype(jnp.float32),
-            enemy_direction=new_direction.astype(jnp.float32),
+            horizontal_direction_enemies=new_direction.astype(jnp.float32),
             enemies_y=new_enemies_y.astype(jnp.float32),
-            vertical_direction=state.vertical_direction.astype(jnp.float32),
+            vertical_direction_enemies=state.vertical_direction_enemies.astype(jnp.float32),
             phoenix_do_attack=new_phoenix_do_attack,
             phoenix_attack_target_y=new_phoenix_attack_target_y.astype(jnp.float32),
             phoenix_original_y=new_phoenix_original_y.astype(jnp.float32),
@@ -481,18 +484,18 @@ class JaxPhoenix(JaxEnvironment[PhoenixState, PhoenixOberservation, PhoenixInfo,
 
     def bat_step(self, state):
         bat_step_size = 0.5
-        active_bats = (state.enemies_x > -1) & (state.enemies_y < self.consts.HEIGHT + 10)
+        active_bats = (state.enemies_x > -1) & (state.enemies_y < self.consts.HEIGHT + 10) & (~state.bat_dying)
         proj_pos = jnp.array([state.projectile_x, state.projectile_y])
 
         # Initialisiere neue Richtungen für jede Fledermaus
         new_directions = jnp.where(
             jnp.logical_and(state.enemies_x <= self.consts.PLAYER_BOUNDS[0] + 3, active_bats),
-            jnp.ones(state.enemy_direction.shape, dtype=jnp.float32),  # Force array shape
+            jnp.ones(state.horizontal_direction_enemies.shape, dtype=jnp.float32),  # Force array shape
             jnp.where(
                 jnp.logical_and(state.enemies_x >= self.consts.PLAYER_BOUNDS[1] - self.consts.ENEMY_WIDTH / 2,
                                 active_bats),
-                jnp.ones(state.enemy_direction.shape, dtype=jnp.float32) * -1,  # Force array shape
-                state.enemy_direction.astype(jnp.float32)  # Ensure consistency
+                jnp.ones(state.horizontal_direction_enemies.shape, dtype=jnp.float32) * -1,  # Force array shape
+                state.horizontal_direction_enemies.astype(jnp.float32)  # Ensure consistency
             )
         )
 
@@ -550,7 +553,7 @@ class JaxPhoenix(JaxEnvironment[PhoenixState, PhoenixOberservation, PhoenixInfo,
         state = state._replace(
             enemies_x=new_enemies_x.astype(jnp.float32),
             enemies_y=state.enemies_y.astype(jnp.float32),
-            enemy_direction=new_directions.astype(jnp.float32),
+            horizontal_direction_enemies=new_directions.astype(jnp.float32),
             projectile_y=new_proj_y,
             bat_wings= new_bat_wings,
         )
@@ -667,7 +670,8 @@ class JaxPhoenix(JaxEnvironment[PhoenixState, PhoenixOberservation, PhoenixInfo,
             step_counter=jnp.array(0),
             enemies_x = self.consts.ENEMY_POSITIONS_X_LIST[0](),
             enemies_y = self.consts.ENEMY_POSITIONS_Y_LIST[0](),
-            enemy_direction =  jnp.full((8,), -1.0),
+            horizontal_direction_enemies = jnp.full((8,), -1.0),
+            vertical_direction_enemies = jnp.full((8,), 1.0),
             enemy_projectile_x=jnp.full((8,), -1),
             enemy_projectile_y=jnp.full((8,), -1),
             projectile_x=jnp.array(-1),  # Standardwert: kein Projektil
@@ -677,10 +681,12 @@ class JaxPhoenix(JaxEnvironment[PhoenixState, PhoenixOberservation, PhoenixInfo,
             level=jnp.array(1),
             level_transition_timer=jnp.array(0),  # Timer for level transition, starts at 0
 
-            vertical_direction=jnp.full((8,),1.0),
             invincibility=jnp.array(False),
             invincibility_timer=jnp.array(0),
+
             bat_wings=jnp.full((8,), 2),
+            bat_dying=jnp.full((8,), False, dtype=jnp.bool), # Bat dying status, (8,), bool
+            bat_death_timer=jnp.full((8,), 0, dtype=jnp.int32), # Timer for Bat death animation, (8,), int
 
             phoenix_do_attack = jnp.full((8,), 0, dtype=jnp.bool),  # Phoenix attack state
             phoenix_attack_target_y = jnp.full((8,), -1, dtype=jnp.float32),  # Target Y position for Phoenix attack
@@ -791,35 +797,58 @@ class JaxPhoenix(JaxEnvironment[PhoenixState, PhoenixOberservation, PhoenixInfo,
 
         # Kollisionsprüfung Gegner
         enemy_collisions_raw = jax.vmap(lambda enemy_pos: check_collision(enemy_pos, projectile_pos))(enemy_positions)
-        enemy_collisions = enemy_collisions_raw & (~state.phoenix_dying)  # Ignore collisions if Phoenix is dying
+        is_bat_level = jnp.logical_or((state.level % 5) == 3, (state.level % 5) == 4)
+        dying_mask = jnp.where(is_bat_level, state.bat_dying, state.phoenix_dying)
+        enemy_collisions = enemy_collisions_raw & (~dying_mask)
         enemy_hit_detected = jnp.any(enemy_collisions)
 
-        # Bei Treffer: Death Animation starten (Timer)
-        new_phoenix_dying = jnp.where(enemy_collisions, True, state.phoenix_dying)
-        new_death_timer = jnp.where(enemy_collisions, self.consts.ENEMY_DEATH_DURATION, state.phoenix_death_timer)
+        # Phoenix-Death-Animation starten (nur Phoenix-Levels)
+        p_hit_mask = enemy_collisions & (~is_bat_level)
+        new_phoenix_dying = jnp.where(p_hit_mask, True, state.phoenix_dying)
+        new_phoenix_death_timer = jnp.where(
+            p_hit_mask, self.consts.ENEMY_DEATH_DURATION, state.phoenix_death_timer
+        )
+        p_dec_timer = jnp.where(
+            new_phoenix_dying & (new_phoenix_death_timer > 0),
+            new_phoenix_death_timer - 1,
+            new_phoenix_death_timer,
+        )
+        p_death_done = new_phoenix_dying & (p_dec_timer == 0)
+        new_phoenix_dying = jnp.where(p_death_done, False, new_phoenix_dying)
+        p_dec_timer = jnp.where(p_death_done, 0, p_dec_timer)
 
-        # Update Phoenix attack state if an enemy is hit
-        phoenix_do_attack = jnp.where(enemy_collisions, False, state.phoenix_do_attack)
-        phoenix_attack_target_y = jnp.where(enemy_collisions, -1, state.phoenix_attack_target_y)
-        phoenix_original_y = jnp.where(enemy_collisions, -1, state.phoenix_original_y)
+        # Bat-Death-Animation starten (nur Bat-Levels)
+        b_hit_mask = enemy_collisions & is_bat_level
+        new_bat_dying = jnp.where(b_hit_mask, True, state.bat_dying)
+        new_bat_death_timer = jnp.where(
+            b_hit_mask, self.consts.ENEMY_DEATH_DURATION, state.bat_death_timer
+        )
+        b_dec_timer = jnp.where(
+            new_bat_dying & (new_bat_death_timer > 0),
+            new_bat_death_timer - 1,
+            new_bat_death_timer,
+        )
+        b_death_done = new_bat_dying & (b_dec_timer == 0)
+        new_bat_dying = jnp.where(b_death_done, False, new_bat_dying)
+        b_dec_timer = jnp.where(b_death_done, 0, b_dec_timer)
 
+        # Phoenix-Angriffsstatus nur in Phoenix-Levels zurücksetzen
+        phoenix_do_attack = jnp.where(p_hit_mask, False, state.phoenix_do_attack)
+        phoenix_attack_target_y = jnp.where(p_hit_mask, -1, state.phoenix_attack_target_y)
+        phoenix_original_y = jnp.where(p_hit_mask, -1, state.phoenix_original_y)
 
-        # Projektil entfernen wenn eine Kollision erkannt wurde und Score erhöhen
-        #enemies_x = jnp.where(enemy_collisions, -1, state.enemies_x).astype(jnp.float32)
-        #enemies_y = jnp.where(enemy_collisions, self.consts.HEIGHT+20, state.enemies_y).astype(jnp.float32)
+        # Projektil/Score bei jedem Treffer (egal welches Level)
         projectile_x = jnp.where(enemy_hit_detected, -1, projectile_x)
         projectile_y = jnp.where(enemy_hit_detected, -1, projectile_y)
         score = jnp.where(enemy_hit_detected, state.score + 20, state.score)
 
-        # Death Timer herunterzählen
-        dec_timer = jnp.where(new_phoenix_dying & (new_death_timer > 0), new_death_timer - 1, new_death_timer)
-        death_done = new_phoenix_dying & (dec_timer == 0)
+        # Gegner entfernen nach Ablauf der jeweiligen Death-Animation
+        death_done_any = jnp.where(is_bat_level, b_death_done, p_death_done)
+        enemies_x = jnp.where(death_done_any, -1, state.enemies_x)
+        enemies_y = jnp.where(death_done_any, self.consts.HEIGHT + 20, state.enemies_y)
 
-        # Nach Ablauf der Animation Gegner entfernen
-        enemies_x = jnp.where(death_done, -1, state.enemies_x)
-        enemies_y = jnp.where(death_done, self.consts.HEIGHT + 20, state.enemies_y)
-        new_phoenix_dying = jnp.where(death_done, False, new_phoenix_dying)
-        dec_timer = jnp.where(death_done, 0, dec_timer)
+        score = jnp.where(enemy_hit_detected, state.score + 20, state.score)
+
 
         # Checken ob alle Gegner getroffen wurden
         #all_enemies_hit = jnp.all(enemies_y >= self.consts.HEIGHT + 10)
@@ -866,8 +895,11 @@ class JaxPhoenix(JaxEnvironment[PhoenixState, PhoenixOberservation, PhoenixInfo,
         # 4) Gegner-Respawn nach Spieler-Respawn nur, wenn kein Level-Übergang läuft
         enemy_respawn_x = jax.lax.switch((level - 1) % 5, self.consts.ENEMY_POSITIONS_X_LIST).astype(jnp.float32)
         enemy_respawn_y = jax.lax.switch((level - 1) % 5, self.consts.ENEMY_POSITIONS_Y_LIST).astype(jnp.float32)
-        enemies_x = jnp.where(respawn_ended & (new_level_transition_timer == 0), enemy_respawn_x, enemies_x)
-        enemies_y = jnp.where(respawn_ended & (new_level_transition_timer == 0), enemy_respawn_y, enemies_y)
+
+        enemy_respawn_mask = respawn_ended & (new_level_transition_timer == 0)
+        enemy_alive_mask = (enemies_x > -1) & (enemies_y < self.consts.HEIGHT + 10)
+        enemies_x = jnp.where(enemy_respawn_mask & enemy_alive_mask, enemy_respawn_x, enemies_x)
+        enemies_y = jnp.where(enemy_respawn_mask & enemy_alive_mask, enemy_respawn_y, enemies_y)
 
 
 
@@ -949,20 +981,22 @@ class JaxPhoenix(JaxEnvironment[PhoenixState, PhoenixOberservation, PhoenixInfo,
             projectile_y = projectile_y,
             enemies_x = enemies_x,
             enemies_y = enemies_y,
-            enemy_direction = state.enemy_direction,
+            horizontal_direction_enemies = state.horizontal_direction_enemies,
             score= score,
             enemy_projectile_x=enemy_projectile_x,
             enemy_projectile_y=enemy_projectile_y,
             lives=lives,
             player_respawn_timer = player_respawn_timer,
             level = level,
-            vertical_direction=state.vertical_direction,
+            vertical_direction_enemies=state.vertical_direction_enemies,
             blue_blocks=state.blue_blocks,
             red_blocks=state.red_blocks,
             green_blocks=state.green_blocks,
             invincibility=state.invincibility,
             invincibility_timer=state.invincibility_timer,
             bat_wings=state.bat_wings,
+            bat_dying=new_bat_dying,
+            bat_death_timer=b_dec_timer,
             phoenix_do_attack=new_phoenix_do_attack,
             phoenix_attack_target_y=new_phoenix_attack_target,
             phoenix_original_y=state.phoenix_original_y,
@@ -970,7 +1004,7 @@ class JaxPhoenix(JaxEnvironment[PhoenixState, PhoenixOberservation, PhoenixInfo,
             phoenix_drift=new_phoenix_drift,
             phoenix_returning=new_phoenix_returning,
             phoenix_dying=new_phoenix_dying,
-            phoenix_death_timer=dec_timer,
+            phoenix_death_timer=p_dec_timer,
             player_dying=new_player_dying,
             player_death_timer=new_player_death_timer,
             player_moving=new_player_moving,
@@ -1015,7 +1049,31 @@ class PhoenixRenderer(JAXGameRenderer):
             self.SPRITE_PHOENIX_DEATH_1,
             self.SPRITE_PHOENIX_DEATH_2,
             # --- BAT BLUE SPRITES ---
+            self.SPRITE_BAT_BLUE_MAIN,
+            self.SPRITE_BAT_BLUE_LEFT_WING_MIDDLE,
+            self.SPRITE_BAT_BLUE_RIGHT_WING_MIDDLE,
+            self.SPRITE_BAT_BLUE_LEFT_WING_UP,
+            self.SPRITE_BAT_BLUE_RIGHT_WING_UP,
+            self.SPRITE_BAT_BLUE_LEFT_WING_DOWN,
+            self.SPRITE_BAT_BLUE_RIGHT_WING_DOWN,
+            self.SPRITE_BAT_BLUE_LEFT_WING_DOWN_2,
+            self.SPRITE_BAT_BLUE_RIGHT_WING_DOWN_2,
+            self.SPRITE_BAT_BLUE_DEATH_1,
+            self.SPRITE_BAT_BLUE_DEATH_2,
+            self.SPRITE_BAT_BLUE_DEATH_3,
             # --- BAT RED SPRITES ---
+            self.SPRITE_BAT_RED_MAIN,
+            self.SPRITE_BAT_RED_LEFT_WING_MIDDLE,
+            self.SPRITE_BAT_RED_RIGHT_WING_MIDDLE,
+            self.SPRITE_BAT_RED_LEFT_WING_UP,
+            self.SPRITE_BAT_RED_RIGHT_WING_UP,
+            self.SPRITE_BAT_RED_LEFT_WING_DOWN,
+            self.SPRITE_BAT_RED_RIGHT_WING_DOWN,
+            self.SPRITE_BAT_RED_LEFT_WING_DOWN_2,
+            self.SPRITE_BAT_RED_RIGHT_WING_DOWN_2,
+            self.SPRITE_BAT_RED_DEATH_1,
+            self.SPRITE_BAT_RED_DEATH_2,
+            self.SPRITE_BAT_RED_DEATH_3,
             # --- OLD BAT SPRITES -- TODO: remove
             self.SPRITE_MAIN_BAT_1,
             self.SPRITE_LEFT_WING_BAT_1,
@@ -1214,7 +1272,31 @@ class PhoenixRenderer(JAXGameRenderer):
             SPRITE_PHOENIX_DEATH_1,
             SPRITE_PHOENIX_DEATH_2,
             # --- BAT BLUE SPRITES ---
+            SPRITE_BAT_BLUE_MAIN,
+            SPRITE_BAT_BLUE_LEFT_WING_MIDDLE,
+            SPRITE_BAT_BLUE_RIGHT_WING_MIDDLE,
+            SPRITE_BAT_BLUE_LEFT_WING_UP,
+            SPRITE_BAT_BLUE_RIGHT_WING_UP,
+            SPRITE_BAT_BLUE_LEFT_WING_DOWN,
+            SPRITE_BAT_BLUE_RIGHT_WING_DOWN,
+            SPRITE_BAT_BLUE_LEFT_WING_DOWN_2,
+            SPRITE_BAT_BLUE_RIGHT_WING_DOWN_2,
+            SPRITE_BAT_BLUE_DEATH_1,
+            SPRITE_BAT_BLUE_DEATH_2,
+            SPRITE_BAT_BLUE_DEATH_3,
             # --- BAT RED SPRITES ---
+            SPRITE_BAT_RED_MAIN,
+            SPRITE_BAT_RED_LEFT_WING_MIDDLE,
+            SPRITE_BAT_RED_RIGHT_WING_MIDDLE,
+            SPRITE_BAT_RED_LEFT_WING_UP,
+            SPRITE_BAT_RED_RIGHT_WING_UP,
+            SPRITE_BAT_RED_LEFT_WING_DOWN,
+            SPRITE_BAT_RED_RIGHT_WING_DOWN,
+            SPRITE_BAT_RED_LEFT_WING_DOWN_2,
+            SPRITE_BAT_RED_RIGHT_WING_DOWN_2,
+            SPRITE_BAT_RED_DEATH_1,
+            SPRITE_BAT_RED_DEATH_2,
+            SPRITE_BAT_RED_DEATH_3,
             # --- OLD BAT SPRITES --- # TODO remove
             SPRITE_MAIN_BAT_1,
             SPRITE_LEFT_WING_BAT_1,
@@ -1264,17 +1346,41 @@ class PhoenixRenderer(JAXGameRenderer):
         frame_phoenix_death_1 = jr.get_sprite_frame(self.SPRITE_PHOENIX_DEATH_1, 0)
         frame_phoenix_death_2 = jr.get_sprite_frame(self.SPRITE_PHOENIX_DEATH_2, 0)
 
-        # Render enemy bats
-        #frame_bat_high_wings = jr.get_sprite_frame(self.SPRITE_BAT_HIGH_WING, 0)
-        #frame_bat_low_wings = jr.get_sprite_frame(self.SPRITE_BAT_LOW_WING, 0)
-        #frame_bat_2_high_wings = jr.get_sprite_frame(self.SPRITE_BAT_2_HIGH_WING, 0)
-        #frame_bat_2_low_wings = jr.get_sprite_frame(self.SPRITE_BAT_2_LOW_WING, 0)
+        # Render enemy bats --- OLD --- TODO: remove
         frame_main_bat = jr.get_sprite_frame(self.SPRITE_MAIN_BAT_1, 0)
         frame_left_wing_bat_1 = jr.get_sprite_frame(self.SPRITE_LEFT_WING_BAT_1, 0)
         frame_right_wing_bat_1 = jr.get_sprite_frame(self.SPRITE_RIGHT_WING_BAT_1, 0)
         frame_main_bat_2 = jr.get_sprite_frame(self.SPRITE_MAIN_BAT_2, 0)
         frame_left_wing_bat_2 = jr.get_sprite_frame(self.SPRITE_LEFT_WING_BAT_2, 0)
         frame_right_wing_bat_2 = jr.get_sprite_frame(self.SPRITE_RIGHT_WING_BAT_2, 0)
+
+        # Render enemy bats blue
+        frame_bat_blue_main = jr.get_sprite_frame(self.SPRITE_BAT_BLUE_MAIN, 0)
+        frame_bat_blue_left_wing_middle = jr.get_sprite_frame(self.SPRITE_BAT_BLUE_LEFT_WING_MIDDLE, 0)
+        frame_bat_blue_right_wing_middle = jr.get_sprite_frame(self.SPRITE_BAT_BLUE_RIGHT_WING_MIDDLE, 0)
+        frame_bat_blue_left_wing_up = jr.get_sprite_frame(self.SPRITE_BAT_BLUE_LEFT_WING_UP, 0)
+        frame_bat_blue_right_wing_up = jr.get_sprite_frame(self.SPRITE_BAT_BLUE_RIGHT_WING_UP, 0)
+        frame_bat_blue_left_wing_down = jr.get_sprite_frame(self.SPRITE_BAT_BLUE_LEFT_WING_DOWN, 0)
+        frame_bat_blue_right_wing_down = jr.get_sprite_frame(self.SPRITE_BAT_BLUE_RIGHT_WING_DOWN, 0)
+        frame_bat_blue_left_wing_down_2 = jr.get_sprite_frame(self.SPRITE_BAT_BLUE_LEFT_WING_DOWN_2, 0)
+        frame_bat_blue_right_wing_down_2 = jr.get_sprite_frame(self.SPRITE_BAT_BLUE_RIGHT_WING_DOWN_2, 0)
+        frame_bat_blue_death_1 = jr.get_sprite_frame(self.SPRITE_BAT_BLUE_DEATH_1, 0)
+        frame_bat_blue_death_2 = jr.get_sprite_frame(self.SPRITE_BAT_BLUE_DEATH_2, 0)
+        frame_bat_blue_death_3 = jr.get_sprite_frame(self.SPRITE_BAT_BLUE_DEATH_3, 0)
+
+        # Render enemy bats red
+        frame_bat_red_main = jr.get_sprite_frame(self.SPRITE_BAT_RED_MAIN, 0)
+        frame_bat_red_left_wing_middle = jr.get_sprite_frame(self.SPRITE_BAT_RED_LEFT_WING_MIDDLE, 0)
+        frame_bat_red_right_wing_middle = jr.get_sprite_frame(self.SPRITE_BAT_RED_RIGHT_WING_MIDDLE, 0)
+        frame_bat_red_left_wing_up = jr.get_sprite_frame(self.SPRITE_BAT_RED_LEFT_WING_UP, 0)
+        frame_bat_red_right_wing_up = jr.get_sprite_frame(self.SPRITE_BAT_RED_RIGHT_WING_UP, 0)
+        frame_bat_red_left_wing_down = jr.get_sprite_frame(self.SPRITE_BAT_RED_LEFT_WING_DOWN, 0)
+        frame_bat_red_right_wing_down = jr.get_sprite_frame(self.SPRITE_BAT_RED_RIGHT_WING_DOWN, 0)
+        frame_bat_red_left_wing_down_2 = jr.get_sprite_frame(self.SPRITE_BAT_RED_LEFT_WING_DOWN_2, 0)
+        frame_bat_red_right_wing_down_2 = jr.get_sprite_frame(self.SPRITE_BAT_RED_RIGHT_WING_DOWN_2, 0)
+        frame_bat_red_death_1 = jr.get_sprite_frame(self.SPRITE_BAT_RED_DEATH_1, 0)
+        frame_bat_red_death_2 = jr.get_sprite_frame(self.SPRITE_BAT_RED_DEATH_2, 0)
+        frame_bat_red_death_3 = jr.get_sprite_frame(self.SPRITE_BAT_RED_DEATH_3, 0)
 
         # Render boss
         frame_boss = jr.get_sprite_frame(self.SPRITE_BOSS, 0)
@@ -1457,7 +1563,8 @@ class PhoenixRenderer(JAXGameRenderer):
         death_flags = jnp.full((enemy_positions.shape[0],), death_flags)
         death_phase = jnp.full((enemy_positions.shape[0],), death_phase)
         inputs = (enemy_positions, wings_array, moving_flags, death_flags, death_phase)
-        raster, _ = jax.lax.scan(render_enemy, raster, inputs)
+        def draw_phoenix(rr):
+            return jax.lax.scan(render_enemy, rr, inputs)[0]
 
         # Render player projectiles
         def render_player_projectile(r):
@@ -1469,6 +1576,104 @@ class PhoenixRenderer(JAXGameRenderer):
             lambda r: r,
             raster
         )
+
+        # Render enemy bats
+        is_blue_level = (state.level % 5) == 3
+        is_red_level = (state.level % 5) == 4
+        is_bat_level = is_blue_level | is_red_level
+
+        raster = jax.lax.cond(jnp.logical_not(is_bat_level), draw_phoenix, lambda rr: rr, raster)
+
+        seg = jnp.maximum(1, self.consts.ENEMY_DEATH_DURATION // 3)
+
+        def pick_death_frame(t: jnp.int32):
+            def blue():
+                return jax.lax.cond(
+                    t > 2 * seg,
+                    lambda: frame_bat_blue_death_1,
+                    lambda: jax.lax.cond(
+                        t > seg,
+                        lambda: frame_bat_blue_death_2,
+                        lambda: frame_bat_blue_death_3
+                    )
+                )
+
+            def red():
+                return jax.lax.cond(
+                    t > 2 * seg,
+                    lambda: frame_bat_red_death_1,
+                    lambda: jax.lax.cond(
+                        t > seg,
+                        lambda: frame_bat_red_death_2,
+                        lambda: frame_bat_red_death_3
+                    )
+                )
+
+            return jax.lax.cond(is_blue_level, blue, red)
+
+        def pick_alive_body():
+            return jax.lax.cond(is_blue_level, lambda: frame_bat_blue_main, lambda: frame_bat_red_main)
+
+        def pick_middle_wings():
+            def blue():
+                return frame_bat_blue_left_wing_middle, frame_bat_blue_right_wing_middle
+
+            def red():
+                return frame_bat_red_left_wing_middle, frame_bat_red_right_wing_middle
+
+            return jax.lax.cond(is_blue_level, blue, red)
+
+        def body(i, r):
+            x = state.enemies_x[i].astype(jnp.int32)
+            y = state.enemies_y[i].astype(jnp.int32)
+            active = (x > -1) & (y < self.consts.HEIGHT + 10) & is_bat_level
+            dying = state.bat_dying[i] & is_bat_level
+            t = state.bat_death_timer[i].astype(jnp.int32)
+
+            def draw_death(rr):
+                # Death-Sprite zentriert auf den Körper-Anker ausrichten
+                frame = pick_death_frame(t)
+                body_frame = pick_alive_body()
+                bh, bw = body_frame.shape[:2]
+                dh, dw = frame.shape[:2]
+                ox = x + (bw - dw) // 2 - 5
+                oy = y + (bh - dh) // 2
+                return jr.render_at(rr, ox, oy, frame)
+
+            def draw_alive(rr):
+                # Körper
+                rr = jr.render_at(rr, x, y, pick_alive_body())
+
+                # Flügel (mittlere) mit korrekt horizontalem Versatz und vertikal +1px
+                left_frame, right_frame = pick_middle_wings()
+                wing_state = state.bat_wings[i].astype(jnp.int32)
+                draw_left = (wing_state == 2) | (wing_state == -1)
+                draw_right = (wing_state == 2) | (wing_state == 1)
+
+                x_left = x - self.consts.WING_WIDTH
+                x_right = x + self.consts.ENEMY_WIDTH - 1  # rechter Flügel 1px weiter links
+                y_wings = y + 2  # beide Flügel 1px tiefer
+
+                rr = jax.lax.cond(
+                    draw_left,
+                    lambda r2: jr.render_at(r2, x_left, y_wings, left_frame),
+                    lambda r2: r2,
+                    rr
+                )
+                rr = jax.lax.cond(
+                    draw_right,
+                    lambda r2: jr.render_at(r2, x_right, y_wings, right_frame),
+                    lambda r2: r2,
+                    rr
+                )
+                return rr
+
+            def draw_one(rr):
+                return jax.lax.cond(dying, draw_death, draw_alive, rr)
+
+            return jax.lax.cond(active, draw_one, lambda rr: rr, r)
+
+        raster = jax.lax.fori_loop(0, state.enemies_x.shape[0], body, raster)
 
         def render_ability(r):
             ah, aw = frame_player_ability.shape[:2]
