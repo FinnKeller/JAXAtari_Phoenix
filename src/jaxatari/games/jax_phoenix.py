@@ -1028,37 +1028,42 @@ class PhoenixRenderer(JAXGameRenderer):
         MODULE_DIR = os.path.dirname(os.path.abspath(__file__))
 
         # Load individual sprite frames
+        # --- LOAD PLAYER SPRITES ---
         player_sprite = jr.loadFrame(os.path.join(MODULE_DIR, "./sprites/phoenix/player/player.npy"))
         player_move_sprite = jr.loadFrame(os.path.join(MODULE_DIR, "./sprites/phoenix/player/player_move.npy"))
         player_death_1_sprite = jr.loadFrame(os.path.join(MODULE_DIR, "./sprites/phoenix/player/player_death_1.npy"))
         player_death_2_sprite = jr.loadFrame(os.path.join(MODULE_DIR, "./sprites/phoenix/player/player_death_2.npy")) # TODO Testen ob konkatinieren der zusammengehören Sprites zu einem funktioniert
+        player_ability = jr.loadFrame(os.path.join(MODULE_DIR, "./sprites/phoenix/ability.npy"))
         player_death_3_sprite = jr.loadFrame(os.path.join(MODULE_DIR, "./sprites/phoenix/player/player_death_3.npy"))
+        # --- LOAD FIELD SPRITES ---
         bg_sprites = jr.loadFrame(os.path.join(MODULE_DIR, "./sprites/pong/background.npy"))
         floor_sprite = jr.loadFrame(os.path.join(MODULE_DIR, "./sprites/phoenix/floor.npy"))
+        # --- LOAD PROJECTILE SPRITES ---
         player_projectile = jr.loadFrame(os.path.join(MODULE_DIR, "./sprites/phoenix/projectiles/player_projectile.npy"))
+        enemy_projectile = jr.loadFrame(os.path.join(MODULE_DIR, "./sprites/phoenix/projectiles/enemy_projectile.npy"))
+        # --- LOAD BATS SPRITES ---
         bat_high_wings_sprite = jr.loadFrame(os.path.join(MODULE_DIR, "./sprites/phoenix/enemy_bats/bats_high_wings.npy"))
         bat_low_wings_sprite = jr.loadFrame(os.path.join(MODULE_DIR, "./sprites/phoenix/enemy_bats/bats_low_wings.npy"))
         bat_2_high_wings_sprite = jr.loadFrame(os.path.join(MODULE_DIR, "./sprites/phoenix/enemy_bats/bats_2_high_wings.npy"))
         bat_2_low_wings_sprite = jr.loadFrame(os.path.join(MODULE_DIR, "./sprites/phoenix/enemy_bats/bats_2_low_wings.npy"))
-        enemy_phoenix_1_sprite = jr.loadFrame(os.path.join(MODULE_DIR, "./sprites/phoenix/enemy_phoenix/enemy_phoenix.npy"))
-        enemy_phoenix_2_sprite = jr.loadFrame(os.path.join(MODULE_DIR, "./sprites/phoenix/enemy_phoenix/enemy_phoenix_2.npy"))
-        enemy_phoenix_attack = jr.loadFrame(os.path.join(MODULE_DIR, "./sprites/phoenix/enemy_phoenix/enemy_phoenix_attack.npy"))
-        enemy_phoenix_death_sprite_1 = jr.loadFrame(os.path.join(MODULE_DIR, "./sprites/phoenix/enemy_phoenix/enemy_phoenix_death_1.npy"))
-        enemy_phoenix_death_sprite_2 = jr.loadFrame(os.path.join(MODULE_DIR, "./sprites/phoenix/enemy_phoenix/enemy_phoenix_death_2.npy"))
-        boss_sprite = jr.loadFrame(os.path.join(MODULE_DIR, "./sprites/phoenix/boss/boss.npy"))
-        enemy_projectile = jr.loadFrame(os.path.join(MODULE_DIR, "./sprites/phoenix/projectiles/enemy_projectile.npy"))
-        boss_block_red = jr.loadFrame(os.path.join(MODULE_DIR, "./sprites/phoenix/boss/red_block.npy"))
-        boss_block_blue = jr.loadFrame(os.path.join(MODULE_DIR, "./sprites/phoenix/boss/blue_block.npy"))
-        boss_block_green = jr.loadFrame(os.path.join(MODULE_DIR, "./sprites/phoenix/boss/green_block.npy"))
-        ability = jr.loadFrame(os.path.join(MODULE_DIR, "./sprites/phoenix/ability.npy"))
         main_bat_1 = jr.loadFrame(os.path.join(MODULE_DIR, "./sprites/phoenix/enemy_bats/bats_1_main.npy"))
         left_wing_bat_1 = jr.loadFrame(os.path.join(MODULE_DIR, "./sprites/phoenix/enemy_bats/bats_1_wing_left.npy"))
         right_wing_bat_1 = jr.loadFrame(os.path.join(MODULE_DIR, "./sprites/phoenix/enemy_bats/bats_1_wing_right.npy"))
         main_bat_2 = jr.loadFrame(os.path.join(MODULE_DIR, "./sprites/phoenix/enemy_bats/bats_2_main.npy"))
         left_wing_bat_2 = jr.loadFrame(os.path.join(MODULE_DIR, "./sprites/phoenix/enemy_bats/bats_2_wing_left.npy"))
         right_wing_bat_2 = jr.loadFrame(os.path.join(MODULE_DIR, "./sprites/phoenix/enemy_bats/bats_2_wing_right.npy"))
-        SPRITE_ABILITY = ability
-
+        # --- LOAD PHOENIX SPRITES ---
+        enemy_phoenix_1_sprite = jr.loadFrame(os.path.join(MODULE_DIR, "./sprites/phoenix/enemy_phoenix/enemy_phoenix.npy"))
+        enemy_phoenix_2_sprite = jr.loadFrame(os.path.join(MODULE_DIR, "./sprites/phoenix/enemy_phoenix/enemy_phoenix_2.npy"))
+        enemy_phoenix_attack = jr.loadFrame(os.path.join(MODULE_DIR, "./sprites/phoenix/enemy_phoenix/enemy_phoenix_attack.npy"))
+        enemy_phoenix_death_sprite_1 = jr.loadFrame(os.path.join(MODULE_DIR, "./sprites/phoenix/enemy_phoenix/enemy_phoenix_death_1.npy"))
+        enemy_phoenix_death_sprite_2 = jr.loadFrame(os.path.join(MODULE_DIR, "./sprites/phoenix/enemy_phoenix/enemy_phoenix_death_2.npy"))
+        # --- LOAD BOSS SPRITES ---
+        boss_sprite = jr.loadFrame(os.path.join(MODULE_DIR, "./sprites/phoenix/boss/boss.npy"))
+        boss_block_red = jr.loadFrame(os.path.join(MODULE_DIR, "./sprites/phoenix/boss/red_block.npy"))
+        boss_block_blue = jr.loadFrame(os.path.join(MODULE_DIR, "./sprites/phoenix/boss/blue_block.npy"))
+        boss_block_green = jr.loadFrame(os.path.join(MODULE_DIR, "./sprites/phoenix/boss/green_block.npy"))
+        # --- PADDED ANIMATION SPRITES ---
         phoenix_sprites_to_pad = [enemy_phoenix_1_sprite, enemy_phoenix_2_sprite, enemy_phoenix_attack, enemy_phoenix_death_sprite_1, enemy_phoenix_death_sprite_2]
         padded_phoenix_sprites, _ = pad_to_match(phoenix_sprites_to_pad)
         enemy_phoenix_1_sprite, enemy_phoenix_2_sprite, enemy_phoenix_attack, enemy_phoenix_death_sprite_1, enemy_phoenix_death_sprite_2 = padded_phoenix_sprites
@@ -1067,37 +1072,45 @@ class PhoenixRenderer(JAXGameRenderer):
         padded_player_sprites, _ = pad_to_match(player_sprites_to_pad)
         player_sprite, player_death_1_sprite, player_death_2_sprite, player_death_3_sprite, player_move_sprite = padded_player_sprites
 
-
+        # --- PLAYER SPRITES ---
         SPRITE_PLAYER = jnp.expand_dims(player_sprite, axis=0)
         SPRITE_PLAYER_DEATH_1 = jnp.expand_dims(player_death_1_sprite, axis=0)
         SPRITE_PLAYER_DEATH_2 = jnp.expand_dims(player_death_2_sprite, axis=0)
         SPRITE_PLAYER_DEATH_3 = jnp.expand_dims(player_death_3_sprite, axis=0)
         SPRITE_PLAYER_MOVE = jnp.expand_dims(player_move_sprite, axis=0)
+        SPRITE_PLAYER_ABILITY = player_ability
+        # --- FIELD SPRITES ---
         BG_SPRITE = jnp.expand_dims(np.zeros_like(bg_sprites), axis=0)
         SPRITE_FLOOR = jnp.expand_dims(floor_sprite, axis=0)
+        # --- UI SPRITES ---
+        DIGITS = jr.load_and_pad_digits(os.path.join(MODULE_DIR, "./sprites/phoenix/digits/{}.npy"))
+        LIFE_INDICATOR = jr.loadFrame(os.path.join(MODULE_DIR, "./sprites/phoenix/life_indicator.npy"))
+        # --- PROJECTILE SPRITES ---
         SPRITE_PLAYER_PROJECTILE = jnp.expand_dims(player_projectile, axis=0)
+        SPRITE_ENEMY_PROJECTILE = jnp.expand_dims(enemy_projectile, axis=0)
+        # --- PHOENIX SPRITES ---
         SPRITE_PHOENIX_1 = jnp.expand_dims(enemy_phoenix_1_sprite, axis=0)
         SPRITE_PHOENIX_2 = jnp.expand_dims(enemy_phoenix_2_sprite, axis=0)
         SPRITE_PHOENIX_ATTACK = jnp.expand_dims(enemy_phoenix_attack, axis=0)
         SPRITE_PHOENIX_DEATH_1 = jnp.expand_dims(enemy_phoenix_death_sprite_1, axis=0)
         SPRITE_PHOENIX_DEATH_2 = jnp.expand_dims(enemy_phoenix_death_sprite_2, axis=0)
+        # --- BATS SPRITES ---
         SPRITE_BAT_HIGH_WING = jnp.expand_dims(bat_high_wings_sprite, axis=0)
         SPRITE_BAT_LOW_WING = jnp.expand_dims(bat_low_wings_sprite, axis=0)
         SPRITE_BAT_2_HIGH_WING = jnp.expand_dims(bat_2_high_wings_sprite, axis=0)
         SPRITE_BAT_2_LOW_WING = jnp.expand_dims(bat_2_low_wings_sprite, axis=0)
-        SPRITE_BOSS = jnp.expand_dims(boss_sprite, axis=0)
-        SPRITE_ENEMY_PROJECTILE = jnp.expand_dims(enemy_projectile, axis=0)
-        SPRITE_BLUE_BLOCK = boss_block_blue
-        SPRITE_RED_BLOCK = boss_block_red
-        SPRITE_GREEN_BLOCK = boss_block_green
-        DIGITS = jr.load_and_pad_digits(os.path.join(MODULE_DIR, "./sprites/phoenix/digits/{}.npy"))
-        LIFE_INDICATOR = jr.loadFrame(os.path.join(MODULE_DIR, "./sprites/phoenix/life_indicator.npy"))
         SPRITE_MAIN_BAT_1 = jnp.expand_dims(main_bat_1, axis=0)
         SPRITE_LEFT_WING_BAT_1 = jnp.expand_dims(left_wing_bat_1, axis=0)
         SPRITE_RIGHT_WING_BAT_1 = jnp.expand_dims(right_wing_bat_1, axis=0)
         SPRITE_MAIN_BAT_2 = jnp.expand_dims(main_bat_2, axis=0)
         SPRITE_LEFT_WING_BAT_2 = jnp.expand_dims(left_wing_bat_2, axis=0)
         SPRITE_RIGHT_WING_BAT_2 = jnp.expand_dims(right_wing_bat_2, axis=0)
+        # --- BOSS SPRITES ---
+        SPRITE_BOSS = jnp.expand_dims(boss_sprite, axis=0)
+        SPRITE_BLUE_BLOCK = boss_block_blue
+        SPRITE_RED_BLOCK = boss_block_red
+        SPRITE_GREEN_BLOCK = boss_block_green
+
         return (
             SPRITE_PLAYER,
             SPRITE_PLAYER_DEATH_1,
@@ -1123,7 +1136,7 @@ class PhoenixRenderer(JAXGameRenderer):
             SPRITE_RED_BLOCK,
             SPRITE_BLUE_BLOCK,
             SPRITE_GREEN_BLOCK,
-            SPRITE_ABILITY,
+            SPRITE_PLAYER_ABILITY,
             SPRITE_MAIN_BAT_1,
             SPRITE_LEFT_WING_BAT_1,
             SPRITE_RIGHT_WING_BAT_1,
@@ -1154,29 +1167,31 @@ class PhoenixRenderer(JAXGameRenderer):
         frame_player_move = jr.get_sprite_frame(self.SPRITE_PLAYER_MOVE, 0)
         #raster = jr.render_at(raster, state.player_x, state.player_y, frame_player)
 
-        # Render projectile
+        # Render projectiles
         frame_projectile = jr.get_sprite_frame(self.SPRITE_PLAYER_PROJECTILE, 0)
+        frame_enemy_projectile = jr.get_sprite_frame(self.SPRITE_ENEMY_PROJECTILE, 0)
 
-        # Render enemies
+        # Render enemy phoenix
         frame_phoenix_1 = jr.get_sprite_frame(self.SPRITE_PHOENIX_1, 0)
         frame_phoenix_2 = jr.get_sprite_frame(self.SPRITE_PHOENIX_2, 0)
         frame_phoenix_attack = jr.get_sprite_frame(self.SPRITE_PHOENIX_ATTACK, 0)
         frame_phoenix_death_1 = jr.get_sprite_frame(self.SPRITE_PHOENIX_DEATH_1, 0)
         frame_phoenix_death_2 = jr.get_sprite_frame(self.SPRITE_PHOENIX_DEATH_2, 0)
+
+        # Render enemy bats
         frame_bat_high_wings = jr.get_sprite_frame(self.SPRITE_BAT_HIGH_WING, 0)
         frame_bat_low_wings = jr.get_sprite_frame(self.SPRITE_BAT_LOW_WING, 0)
         frame_bat_2_high_wings = jr.get_sprite_frame(self.SPRITE_BAT_2_HIGH_WING, 0)
         frame_bat_2_low_wings = jr.get_sprite_frame(self.SPRITE_BAT_2_LOW_WING, 0)
-        frame_enemy_projectile = jr.get_sprite_frame(self.SPRITE_ENEMY_PROJECTILE, 0)
-        frame_boss = jr.get_sprite_frame(self.SPRITE_BOSS, 0)
-
         frame_main_bat = jr.get_sprite_frame(self.SPRITE_MAIN_BAT_1, 0)
         frame_left_wing_bat_1 = jr.get_sprite_frame(self.SPRITE_LEFT_WING_BAT_1, 0)
         frame_right_wing_bat_1 = jr.get_sprite_frame(self.SPRITE_RIGHT_WING_BAT_1, 0)
-
         frame_main_bat_2 = jr.get_sprite_frame(self.SPRITE_MAIN_BAT_2, 0)
         frame_left_wing_bat_2 = jr.get_sprite_frame(self.SPRITE_LEFT_WING_BAT_2, 0)
         frame_right_wing_bat_2 = jr.get_sprite_frame(self.SPRITE_RIGHT_WING_BAT_2, 0)
+
+        # Render boss
+        frame_boss = jr.get_sprite_frame(self.SPRITE_BOSS, 0)
 
         player_death_sprite_duration = self.consts.PLAYER_DEATH_DURATION // 3  # Duration for each player death sprite frame
 
@@ -1345,6 +1360,7 @@ class PhoenixRenderer(JAXGameRenderer):
 
             return raster, None
 
+        # Update the raster
         enemy_positions = jnp.stack((state.enemies_x, state.enemies_y), axis=1)
         wings_array = jnp.full((enemy_positions.shape[0],), state.bat_wings)
         moving_flags = is_moving_vert
@@ -1428,7 +1444,3 @@ class PhoenixRenderer(JAXGameRenderer):
         raster = jr.render_indicator(raster, 70, 20, lives_value, self.LIFE_INDICATOR, spacing=4)
 
         return raster
-
-
-
-
