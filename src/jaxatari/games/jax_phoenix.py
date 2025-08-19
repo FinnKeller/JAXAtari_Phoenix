@@ -889,10 +889,36 @@ class JaxPhoenix(JaxEnvironment[PhoenixState, PhoenixOberservation, PhoenixInfo,
             jnp.float32)
         next_enemies_y = jax.lax.switch((pending_next_level - 1) % 5, self.consts.ENEMY_POSITIONS_Y_LIST).astype(
             jnp.float32)
-        enemies_x = jnp.where(transition_ended, next_enemies_x, enemies_x)
-        enemies_y = jnp.where(transition_ended, next_enemies_y, enemies_y)
 
-        # 4) Gegner-Respawn nach Spieler-Respawn nur, wenn kein Level-Übergang läuft
+
+        reset_mask = transition_ended
+        enemies_x = jnp.where(reset_mask, next_enemies_x.astype(jnp.float32), enemies_x)
+        enemies_y = jnp.where(reset_mask, next_enemies_y.astype(jnp.float32), enemies_y)
+
+        # Richtungen der Formation zurücksetzen
+        new_horizontal_direction_enemies = jnp.where(
+            reset_mask, jnp.full((8,), -1.0, dtype=jnp.float32), state.horizontal_direction_enemies
+        )
+        new_vertical_direction_enemies = jnp.where(
+            reset_mask, jnp.full((8,), 1.0, dtype=jnp.float32), state.vertical_direction_enemies
+        )
+
+        # Death-/Timer-/Flügel-Status zurücksetzen
+        new_phoenix_dying = jnp.where(reset_mask, jnp.full((8,), False), new_phoenix_dying)
+        p_dec_timer = jnp.where(reset_mask, jnp.full((8,), 0), p_dec_timer)
+
+        new_bat_dying = jnp.where(reset_mask, jnp.full((8,), False), new_bat_dying)
+        b_dec_timer = jnp.where(reset_mask, jnp.full((8,), 0), b_dec_timer)
+        new_bat_wings = jnp.where(reset_mask, jnp.full((8,), 2, dtype=jnp.int32), state.bat_wings)
+
+        # Boss-Blöcke nur beim Eintritt in das Boss-Level neu initialisieren
+        enter_boss_next = ((pending_next_level % 5) == 0)
+        reset_blocks = reset_mask & enter_boss_next
+        blue_blocks = jnp.where(reset_blocks, self.consts.BLUE_BLOCK_POSITIONS.astype(jnp.float32), state.blue_blocks)
+        red_blocks = jnp.where(reset_blocks, self.consts.RED_BLOCK_POSITIONS.astype(jnp.float32), state.red_blocks)
+        green_blocks = jnp.where(reset_blocks, self.consts.GREEN_BLOCK_POSITIONS.astype(jnp.float32), state.green_blocks)
+
+        # Gegner-Respawn nach Spieler-Respawn nur, wenn kein Level-Übergang läuft
         enemy_respawn_x = jax.lax.switch((level - 1) % 5, self.consts.ENEMY_POSITIONS_X_LIST).astype(jnp.float32)
         enemy_respawn_y = jax.lax.switch((level - 1) % 5, self.consts.ENEMY_POSITIONS_Y_LIST).astype(jnp.float32)
 
@@ -972,6 +998,7 @@ class JaxPhoenix(JaxEnvironment[PhoenixState, PhoenixOberservation, PhoenixInfo,
         new_phoenix_attack_target = jnp.where(formation_reset, jnp.full((8,), -1.0), state.phoenix_attack_target_y)
         new_phoenix_cooldown = jnp.where(formation_reset, jnp.full((8,), 0), state.phoenix_cooldown)
         new_phoenix_drift = jnp.where(formation_reset, jnp.full((8,), 0.0), state.phoenix_drift)
+        new_phoenix_original_y = jnp.where(formation_reset, jnp.full((8,), -1.0), state.phoenix_original_y)
 
         return_state = PhoenixState(
             player_x = player_x,
@@ -981,25 +1008,25 @@ class JaxPhoenix(JaxEnvironment[PhoenixState, PhoenixOberservation, PhoenixInfo,
             projectile_y = projectile_y,
             enemies_x = enemies_x,
             enemies_y = enemies_y,
-            horizontal_direction_enemies = state.horizontal_direction_enemies,
+            horizontal_direction_enemies = new_horizontal_direction_enemies,
             score= score,
             enemy_projectile_x=enemy_projectile_x,
             enemy_projectile_y=enemy_projectile_y,
             lives=lives,
             player_respawn_timer = player_respawn_timer,
             level = level,
-            vertical_direction_enemies=state.vertical_direction_enemies,
-            blue_blocks=state.blue_blocks,
-            red_blocks=state.red_blocks,
-            green_blocks=state.green_blocks,
+            vertical_direction_enemies=new_vertical_direction_enemies,
+            blue_blocks=blue_blocks,
+            red_blocks=red_blocks,
+            green_blocks=green_blocks,
             invincibility=state.invincibility,
             invincibility_timer=state.invincibility_timer,
-            bat_wings=state.bat_wings,
+            bat_wings=new_bat_wings,
             bat_dying=new_bat_dying,
             bat_death_timer=b_dec_timer,
             phoenix_do_attack=new_phoenix_do_attack,
             phoenix_attack_target_y=new_phoenix_attack_target,
-            phoenix_original_y=state.phoenix_original_y,
+            phoenix_original_y=new_phoenix_original_y,
             phoenix_cooldown=new_phoenix_cooldown,
             phoenix_drift=new_phoenix_drift,
             phoenix_returning=new_phoenix_returning,
