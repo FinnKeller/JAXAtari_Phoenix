@@ -1016,7 +1016,7 @@ class PhoenixRenderer(JAXGameRenderer):
             self.SPRITE_RED_BLOCK,
             self.SPRITE_BLUE_BLOCK,
             self.SPRITE_GREEN_BLOCK,
-            self.SPRITE_ABILITY,
+            self.SPRITE_PLAYER_ABILITY,
             self.SPRITE_MAIN_BAT_1,
             self.SPRITE_LEFT_WING_BAT_1,
             self.SPRITE_RIGHT_WING_BAT_1,
@@ -1042,7 +1042,7 @@ class PhoenixRenderer(JAXGameRenderer):
         player_projectile = jr.loadFrame(os.path.join(MODULE_DIR, "./sprites/phoenix/projectiles/player_projectile.npy"))
         enemy_projectile = jr.loadFrame(os.path.join(MODULE_DIR, "./sprites/phoenix/projectiles/enemy_projectile.npy"))
         # --- LOAD BATS SPRITES ---
-        bat_blue_main_sprite = jr.loadFrame(os.path.join(MODULE_DIR, "./sprites/phoenix/enemy_bats/bat_blue_main.npy"))
+        bat_blue_main_sprite = jr.loadFrame(os.path.join(MODULE_DIR, "./sprites/phoenix/enemy_bats/bats_blue/bat_blue_main.npy"))
         #bat_high_wings_sprite = jr.loadFrame(os.path.join(MODULE_DIR, "./sprites/phoenix/enemy_bats/bats_high_wings.npy"))
         #bat_low_wings_sprite = jr.loadFrame(os.path.join(MODULE_DIR, "./sprites/phoenix/enemy_bats/bats_low_wings.npy"))
         #bat_2_high_wings_sprite = jr.loadFrame(os.path.join(MODULE_DIR, "./sprites/phoenix/enemy_bats/bats_2_high_wings.npy"))
@@ -1079,7 +1079,7 @@ class PhoenixRenderer(JAXGameRenderer):
         SPRITE_PLAYER_DEATH_2 = jnp.expand_dims(player_death_2_sprite, axis=0)
         SPRITE_PLAYER_DEATH_3 = jnp.expand_dims(player_death_3_sprite, axis=0)
         SPRITE_PLAYER_MOVE = jnp.expand_dims(player_move_sprite, axis=0)
-        SPRITE_PLAYER_ABILITY = player_ability
+        SPRITE_PLAYER_ABILITY = jnp.expand_dims(player_ability, axis=0)
         # --- FIELD SPRITES ---
         BG_SPRITE = jnp.expand_dims(np.zeros_like(bg_sprites), axis=0)
         SPRITE_FLOOR = jnp.expand_dims(floor_sprite, axis=0)
@@ -1166,6 +1166,7 @@ class PhoenixRenderer(JAXGameRenderer):
         frame_player_death_2 = jr.get_sprite_frame(self.SPRITE_PLAYER_DEATH_2, 0)
         frame_player_death_3 = jr.get_sprite_frame(self.SPRITE_PLAYER_DEATH_3, 0)
         frame_player_move = jr.get_sprite_frame(self.SPRITE_PLAYER_MOVE, 0)
+        frame_player_ability = jr.get_sprite_frame(self.SPRITE_PLAYER_ABILITY, 0)
         #raster = jr.render_at(raster, state.player_x, state.player_y, frame_player)
 
         # Render projectiles
@@ -1211,9 +1212,13 @@ class PhoenixRenderer(JAXGameRenderer):
         def pick_player_alive_sprite():
             anim_toggle = (((state.step_counter // self.consts.PLAYER_ANIMATION_SPEED) % 2) == 0)
             return jax.lax.cond(
-                state.player_moving & anim_toggle,
+                state.invincibility,  # Fähigkeit aktiv -> immer Move-Sprite
                 lambda: frame_player_move,
-                lambda: frame_player
+                lambda: jax.lax.cond(
+                    state.player_moving & anim_toggle,
+                    lambda: frame_player_move,
+                    lambda: frame_player
+                )
             )
 
         frame_player_used = jax.lax.cond(
@@ -1382,15 +1387,16 @@ class PhoenixRenderer(JAXGameRenderer):
         )
 
         def render_ability(r):
-            return jax.lax.cond(
-                state.invincibility,  # condition must be a scalar bool (e.g., jnp.bool_)
-                lambda _: jr.render_at(r, state.player_x - 5, state.player_y - 4, self.SPRITE_ABILITY),
-                lambda _: r,
-                operand=None  # no operand needed
-            )
+            ah, aw = frame_player_ability.shape[:2]
+            ph, pw = frame_player_used.shape[:2]
+            ax = state.player_x + (pw - aw) // 2
+            ay = state.player_y + (ph - ah) // 2
+            return jr.render_at(r, ax, ay, frame_player_ability)
+
+        ability_visible = state.invincibility & ((state.step_counter % 4) == 0) # Zeige ability nur jeden vierten Frame
 
         raster = jax.lax.cond(
-            state.invincibility,
+            ability_visible,
             render_ability,
             lambda r: r,
             raster
