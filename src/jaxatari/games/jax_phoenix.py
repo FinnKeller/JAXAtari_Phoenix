@@ -40,11 +40,14 @@ class PhoenixConstants(NamedTuple):
     BLOCK_HEIGHT:int = 4
     SCORE_COLOR: Tuple[int, int, int] = (210, 210, 64)
     PLAYER_BOUNDS: Tuple[int, int] = (0, 155)  # (left, right)
-    ENEMY_DEATH_DURATION: int = 30
-    PLAYER_DEATH_DURATION: int = 90
+    ENEMY_DEATH_DURATION: int = 30 # ca. 0,5 Sekunden bei 60 FPS
+    PLAYER_DEATH_DURATION: int = 90 # ca. 1,5 Sekunden bei 60 FPS
     ENEMY_PROJECTILE_SPEED: int = 2
-    PLAYER_RESPAWN_DURATION: int = 360
+    PLAYER_RESPAWN_DURATION: int = 360 # ca. 6 Sekunden bei 60 FPS
     FIRE_CHANCE: float = 0.001
+    LEVEL_TRANSITION_DURATION: int = 240 # ca. 4 Sekunden bei 60 FPS
+    ENEMY_ANIMATION_SPEED: int = 30  # ca. 0,5 Sekunden bei 60 FPS
+    PLAYER_ANIMATION_SPEED: int = 6  # ca. 0,1 Sekunden bei 60 FPS
     ENEMY_POSITIONS_X_LIST = [
         lambda: jnp.array(
             [123 - 160 // 2, 123 - 160 // 2, 136 - 160 // 2, 136 - 160 // 2, 160 - 160 // 2, 160 - 160 // 2,
@@ -188,6 +191,7 @@ class PhoenixState(NamedTuple):
 
     player_dying: chex.Array = jnp.array(False)  # Player dying status, bool
     player_death_timer: chex.Array = jnp.array(0)  # Timer for player death animation, int
+    player_moving: chex.Array = jnp.array(False) # Player moving status, bool
 
     projectile_x: chex.Array = jnp.array(-1)  # Standardwert: kein Projektil
     projectile_y: chex.Array = jnp.array(-1)  # Standardwert: kein Projektil # Gegner Y-Positionen
@@ -198,6 +202,7 @@ class PhoenixState(NamedTuple):
     lives: chex.Array = jnp.array(5) # Lives
     player_respawn_timer: chex.Array = 0 # Invincibility timer
     level: chex.Array = jnp.array(1)  # Level, starts at 1
+    level_transition_timer: chex.Array = jnp.array(0)  # Timer for level transition
 
 
 
@@ -314,9 +319,16 @@ class JaxPhoenix(JaxEnvironment[PhoenixState, PhoenixOberservation, PhoenixInfo,
             player_x < self.consts.PLAYER_BOUNDS[0], self.consts.PLAYER_BOUNDS[0],
             jnp.where(player_x > self.consts.PLAYER_BOUNDS[1], self.consts.PLAYER_BOUNDS[1], player_x)
         )
+
+        # Did the player move?
+        player_moved = jnp.not_equal(player_x.astype(jnp.float32), state.player_x.astype(jnp.float32))
+        new_player_moving = player_moved.astype(jnp.bool_)
+
         state = state._replace(player_x= player_x.astype(jnp.float32),
                                invincibility=new_invinsibility,
-                               invincibility_timer=new_timer)
+                               invincibility_timer=new_timer,
+                                 player_moving=new_player_moving,
+        )
 
         return state
 
@@ -663,6 +675,7 @@ class JaxPhoenix(JaxEnvironment[PhoenixState, PhoenixOberservation, PhoenixInfo,
             lives=jnp.array(5), # Standardwert: 5 Leben
             player_respawn_timer=jnp.array(5),
             level=jnp.array(1),
+            level_transition_timer=jnp.array(0),  # Timer for level transition, starts at 0
 
             vertical_direction=jnp.full((8,),1.0),
             invincibility=jnp.array(False),
@@ -680,6 +693,7 @@ class JaxPhoenix(JaxEnvironment[PhoenixState, PhoenixOberservation, PhoenixInfo,
 
             player_dying=jnp.array(False, dtype = jnp.bool),  # Player dying status, bool
             player_death_timer=jnp.array(0, dtype = jnp.int32),  # Timer for player death animation, int
+            player_moving=jnp.array(False, dtype = jnp.bool), # Player moving status, bool
 
             # Initialierung der Blockpositionen
             blue_blocks=self.consts.BLUE_BLOCK_POSITIONS.astype(jnp.float32),
@@ -694,6 +708,7 @@ class JaxPhoenix(JaxEnvironment[PhoenixState, PhoenixOberservation, PhoenixInfo,
     def step(self,state, action: Action) -> Tuple[PhoenixOberservation, PhoenixState, float, bool, PhoenixInfo]:
         new_respawn_timer = jnp.where(state.player_respawn_timer > 0, state.player_respawn_timer - 1, 0)
         respawn_ended = (state.player_respawn_timer > 0) & (new_respawn_timer == 0)
+
         state = state._replace(player_respawn_timer=new_respawn_timer.astype(jnp.int32))
 
         state = jax.lax.cond(
@@ -807,21 +822,54 @@ class JaxPhoenix(JaxEnvironment[PhoenixState, PhoenixOberservation, PhoenixInfo,
         dec_timer = jnp.where(death_done, 0, dec_timer)
 
         # Checken ob alle Gegner getroffen wurden
-        all_enemies_hit = jnp.all(enemies_y >= self.consts.HEIGHT + 10)
-        new_level = jnp.where(all_enemies_hit, (state.level % 5) + 1, state.level)
-        new_enemies_x = jax.lax.cond(
-            all_enemies_hit,
-            lambda: jax.lax.switch((new_level -1 )% 5, self.consts.ENEMY_POSITIONS_X_LIST).astype(jnp.float32),
-            lambda: state.enemies_x.astype(jnp.float32)
+        #all_enemies_hit = jnp.all(enemies_y >= self.consts.HEIGHT + 10)
+        #new_level = jnp.where(all_enemies_hit, (state.level % 5) + 1, state.level)
+        #new_enemies_x = jax.lax.cond(
+        #    all_enemies_hit,
+        #    lambda: jax.lax.switch((new_level -1 )% 5, self.consts.ENEMY_POSITIONS_X_LIST).astype(jnp.float32),
+        #    lambda: state.enemies_x.astype(jnp.float32)
+        #)
+        #new_enemies_y = jax.lax.cond(
+        #    all_enemies_hit,
+        #    lambda: jax.lax.switch((new_level -1 )% 5, self.consts.ENEMY_POSITIONS_Y_LIST).astype(jnp.float32),
+        #    lambda: enemies_y.astype(jnp.float32)
+        #)
+        #enemies_x = new_enemies_x
+        #enemies_y = new_enemies_y
+        #level = new_level
+
+        # 1) Level-Übergangstimer starten/fortschreiben
+        all_enemies_cleared = jnp.all(enemies_y >= self.consts.HEIGHT + 10)
+        start_transition = all_enemies_cleared & (state.level_transition_timer == 0)
+
+        level_transition_timer = jnp.where(
+            start_transition,
+            self.consts.LEVEL_TRANSITION_DURATION,
+            state.level_transition_timer
         )
-        new_enemies_y = jax.lax.cond(
-            all_enemies_hit,
-            lambda: jax.lax.switch((new_level -1 )% 5, self.consts.ENEMY_POSITIONS_Y_LIST).astype(jnp.float32),
-            lambda: enemies_y.astype(jnp.float32)
-        )
-        enemies_x = new_enemies_x
-        enemies_y = new_enemies_y
-        level = new_level
+        level_transition_timer = jnp.where(level_transition_timer > 0, level_transition_timer - 1, 0)
+
+        transition_ended = (state.level_transition_timer > 0) & (level_transition_timer == 0)
+
+        # 2) Nächstes Level vormerken und erst bei Timerende aktivieren
+        pending_next_level = (state.level % 5) + 1
+        level = jnp.where(transition_ended, pending_next_level, state.level)
+
+        # 3) Gegner-Formationen nur bei Timerende spawnen
+        next_enemies_x = jax.lax.switch((pending_next_level - 1) % 5, self.consts.ENEMY_POSITIONS_X_LIST).astype(
+            jnp.float32)
+        next_enemies_y = jax.lax.switch((pending_next_level - 1) % 5, self.consts.ENEMY_POSITIONS_Y_LIST).astype(
+            jnp.float32)
+        enemies_x = jnp.where(transition_ended, next_enemies_x, enemies_x)
+        enemies_y = jnp.where(transition_ended, next_enemies_y, enemies_y)
+
+        # 4) Gegner-Respawn nach Spieler-Respawn nur, wenn kein Level-Übergang läuft
+        enemy_respawn_x = jax.lax.switch((level - 1) % 5, self.consts.ENEMY_POSITIONS_X_LIST).astype(jnp.float32)
+        enemy_respawn_y = jax.lax.switch((level - 1) % 5, self.consts.ENEMY_POSITIONS_Y_LIST).astype(jnp.float32)
+        enemies_x = jnp.where(respawn_ended & (level_transition_timer == 0), enemy_respawn_x, enemies_x)
+        enemies_y = jnp.where(respawn_ended & (level_transition_timer == 0), enemy_respawn_y, enemies_y)
+
+
 
         is_vulnerable = (new_respawn_timer <= 0) & (~state.player_dying) & (~state.invincibility)
 
@@ -871,20 +919,27 @@ class JaxPhoenix(JaxEnvironment[PhoenixState, PhoenixOberservation, PhoenixInfo,
             new_respawn_timer
         )
 
-        enemy_respawn_x = jax.lax.switch((level - 1) % 5, self.consts.ENEMY_POSITIONS_X_LIST).astype(jnp.float32)
-        enemy_respawn_y = jax.lax.switch((level - 1) % 5, self.consts.ENEMY_POSITIONS_Y_LIST).astype(jnp.float32)
+        new_player_moving = jnp.where(
+            jnp.logical_or(new_player_dying, player_respawn_timer > 0),
+            jnp.array(False, dtype=jnp.bool_),
+            state.player_moving
+        )
 
-        enemies_x = jnp.where(respawn_ended, enemy_respawn_x, enemies_x)
-        enemies_y = jnp.where(respawn_ended, enemy_respawn_y, enemies_y)
+        #enemy_respawn_x = jax.lax.switch((level - 1) % 5, self.consts.ENEMY_POSITIONS_X_LIST).astype(jnp.float32)
+        #enemy_respawn_y = jax.lax.switch((level - 1) % 5, self.consts.ENEMY_POSITIONS_Y_LIST).astype(jnp.float32)
+
+        #enemies_x = jnp.where(respawn_ended, enemy_respawn_x, enemies_x)
+        #enemies_y = jnp.where(respawn_ended, enemy_respawn_y, enemies_y)
 
         new_player_dying = jnp.where(player_death_done, False, new_player_dying).astype(jnp.bool_)
         new_player_death_timer = jnp.where(player_death_done, 0, dec_player_timer).astype(jnp.int32)
 
-        new_phoenix_do_attack     = jnp.where(respawn_ended, jnp.full((8,), False), state.phoenix_do_attack)
-        new_phoenix_returning     = jnp.where(respawn_ended, jnp.full((8,), False), state.phoenix_returning)
-        new_phoenix_attack_target = jnp.where(respawn_ended, jnp.full((8,), -1.0), state.phoenix_attack_target_y)
-        new_phoenix_cooldown      = jnp.where(respawn_ended, jnp.full((8,), 0), state.phoenix_cooldown)
-        new_phoenix_drift         = jnp.where(respawn_ended, jnp.full((8,), 0.0), state.phoenix_drift)
+        formation_reset = transition_ended | (respawn_ended & (level_transition_timer == 0))
+        new_phoenix_do_attack = jnp.where(formation_reset, jnp.full((8,), False), state.phoenix_do_attack)
+        new_phoenix_returning = jnp.where(formation_reset, jnp.full((8,), False), state.phoenix_returning)
+        new_phoenix_attack_target = jnp.where(formation_reset, jnp.full((8,), -1.0), state.phoenix_attack_target_y)
+        new_phoenix_cooldown = jnp.where(formation_reset, jnp.full((8,), 0), state.phoenix_cooldown)
+        new_phoenix_drift = jnp.where(formation_reset, jnp.full((8,), 0.0), state.phoenix_drift)
 
         return_state = PhoenixState(
             player_x = player_x,
@@ -918,6 +973,8 @@ class JaxPhoenix(JaxEnvironment[PhoenixState, PhoenixOberservation, PhoenixInfo,
             phoenix_death_timer=dec_timer,
             player_dying=new_player_dying,
             player_death_timer=new_player_death_timer,
+            player_moving=new_player_moving,
+            level_transition_timer=level_transition_timer,
 
         )
         observation = self._get_observation(return_state)
@@ -939,6 +996,7 @@ class PhoenixRenderer(JAXGameRenderer):
             self.SPRITE_PLAYER_DEATH_1,
             self.SPRITE_PLAYER_DEATH_2,
             self.SPRITE_PLAYER_DEATH_3,
+            self.SPRITE_PLAYER_MOVE,
             self.BG_SPRITE,
             self.SPRITE_PLAYER_PROJECTILE,
             self.SPRITE_FLOOR,
@@ -971,6 +1029,7 @@ class PhoenixRenderer(JAXGameRenderer):
 
         # Load individual sprite frames
         player_sprite = jr.loadFrame(os.path.join(MODULE_DIR, "./sprites/phoenix/player.npy"))
+        player_move_sprite = jr.loadFrame(os.path.join(MODULE_DIR, "./sprites/phoenix/player_move.npy"))
         player_death_1_sprite = jr.loadFrame(os.path.join(MODULE_DIR, "./sprites/phoenix/player_death_1.npy"))
         player_death_2_sprite = jr.loadFrame(os.path.join(MODULE_DIR, "./sprites/phoenix/player_death_2.npy")) # TODO Testen ob konkatinieren der zusammengehören Sprites zu einem funktioniert
         player_death_3_sprite = jr.loadFrame(os.path.join(MODULE_DIR, "./sprites/phoenix/player_death_3.npy"))
@@ -1004,15 +1063,16 @@ class PhoenixRenderer(JAXGameRenderer):
         padded_phoenix_sprites, _ = pad_to_match(phoenix_sprites_to_pad)
         enemy_phoenix_1_sprite, enemy_phoenix_2_sprite, enemy_phoenix_attack, enemy_phoenix_death_1_sprite, enemy_phoenix_death_2_sprite = padded_phoenix_sprites
 
-        player_sprites_to_pad = [player_sprite, player_death_1_sprite, player_death_2_sprite, player_death_3_sprite]
+        player_sprites_to_pad = [player_sprite, player_death_1_sprite, player_death_2_sprite, player_death_3_sprite, player_move_sprite]
         padded_player_sprites, _ = pad_to_match(player_sprites_to_pad)
-        player_sprite, player_death_1_sprite, player_death_2_sprite, player_death_3_sprite = padded_player_sprites
+        player_sprite, player_death_1_sprite, player_death_2_sprite, player_death_3_sprite, player_move_sprite = padded_player_sprites
 
 
         SPRITE_PLAYER = jnp.expand_dims(player_sprite, axis=0)
         SPRITE_PLAYER_DEATH_1 = jnp.expand_dims(player_death_1_sprite, axis=0)
         SPRITE_PLAYER_DEATH_2 = jnp.expand_dims(player_death_2_sprite, axis=0)
         SPRITE_PLAYER_DEATH_3 = jnp.expand_dims(player_death_3_sprite, axis=0)
+        SPRITE_PLAYER_MOVE = jnp.expand_dims(player_move_sprite, axis=0)
         BG_SPRITE = jnp.expand_dims(np.zeros_like(bg_sprites), axis=0)
         SPRITE_FLOOR = jnp.expand_dims(floor_sprite, axis=0)
         SPRITE_PLAYER_PROJECTILE = jnp.expand_dims(player_projectile, axis=0)
@@ -1043,6 +1103,7 @@ class PhoenixRenderer(JAXGameRenderer):
             SPRITE_PLAYER_DEATH_1,
             SPRITE_PLAYER_DEATH_2,
             SPRITE_PLAYER_DEATH_3,
+            SPRITE_PLAYER_MOVE,
             BG_SPRITE,
             SPRITE_PLAYER_PROJECTILE,
             SPRITE_FLOOR,
@@ -1090,6 +1151,7 @@ class PhoenixRenderer(JAXGameRenderer):
         frame_player_death_1 = jr.get_sprite_frame(self.SPRITE_PLAYER_DEATH_1, 0)
         frame_player_death_2 = jr.get_sprite_frame(self.SPRITE_PLAYER_DEATH_2, 0)
         frame_player_death_3 = jr.get_sprite_frame(self.SPRITE_PLAYER_DEATH_3, 0)
+        frame_player_move = jr.get_sprite_frame(self.SPRITE_PLAYER_MOVE, 0)
         #raster = jr.render_at(raster, state.player_x, state.player_y, frame_player)
 
         # Render projectile
@@ -1130,7 +1192,20 @@ class PhoenixRenderer(JAXGameRenderer):
                 )
             )
 
-        frame_player_used = jax.lax.cond(state.player_dying, pick_player_death_sprite, lambda: frame_player)
+        def pick_player_alive_sprite():
+            anim_toggle = (((state.step_counter // self.consts.PLAYER_ANIMATION_SPEED) % 2) == 0)
+            return jax.lax.cond(
+                state.player_moving & anim_toggle,
+                lambda: frame_player_move,
+                lambda: frame_player
+            )
+
+        frame_player_used = jax.lax.cond(
+            state.player_dying,
+            pick_player_death_sprite,
+            pick_player_alive_sprite
+        )
+
         raster = jax.lax.cond(
             jnp.logical_or(state.player_dying, state.player_respawn_timer <= 0),
             lambda r: jr.render_at(r, state.player_x, state.player_y, frame_player_used),
@@ -1154,7 +1229,7 @@ class PhoenixRenderer(JAXGameRenderer):
         def render_enemy(raster, input):
             enemy_pos, wings, moving_vert, enemy_dying, enemy_phase = input
             x, y = enemy_pos
-            anim_toggle = ((state.step_counter // 32) % 2) == 0  # toggle every 32 steps
+            anim_toggle = ((state.step_counter // self.consts.ENEMY_ANIMATION_SPEED) % 2) == 0  # toggle every 32 steps
 
             def pick_phoenix_death_sprite():
                 return jax.lax.cond(
